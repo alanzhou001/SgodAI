@@ -52,6 +52,17 @@ The demo is dependency-free and optimized for Safari/macOS style interaction. It
 python3 -m unittest discover -s tests
 ```
 
+## Publish To GitHub
+
+After GitHub CLI authentication is valid:
+
+```bash
+gh auth login -h github.com -p https -w
+./scripts/publish_github.sh SgodAI
+```
+
+The helper creates a public GitHub repository, adds `origin`, pushes `main`, and sets upstream tracking.
+
 ## Suggested Directory Layout
 
 ```text
@@ -90,4 +101,3 @@ public/
 3. M3: Report composer, post-market report, weekly report, email targets, delivery logs.
 4. M4: Position Window Engine, auditable state transitions, status explanations.
 5. M5: AI Research Assistant, LLM provider interface, grounded report and window explanations.
-
