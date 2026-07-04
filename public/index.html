@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SgodAI Market Radar</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -22,7 +23,7 @@
           <button class="nav-item" data-view="radar" title="Sector Radar">◎</button>
           <button class="nav-item" data-view="watchlist" title="Watchlist">◫</button>
           <button class="nav-item" data-view="graph" title="Knowledge Graph">⌬</button>
-          <button class="nav-item" data-view="settings" title="Providers">⚙</button>
+          <button class="nav-item" data-view="settings" title="Configuration">⚙</button>
         </nav>
 
         <div class="sidebar-foot">
@@ -37,16 +38,25 @@
             <h1>SgodAI Market Radar</h1>
             <p>Core Engine + Agent Copilot</p>
           </div>
-          <div class="toolbar">
-            <select id="sectorFilter" aria-label="sector filter">
-              <option value="all">全部行业</option>
-            </select>
-            <select id="horizonFilter" aria-label="horizon filter">
-              <option value="all">全部周期</option>
-              <option value="long">长期</option>
-              <option value="medium">中期</option>
-              <option value="short">短期</option>
-            </select>
+          <div class="command-center">
+            <div class="search-shell">
+              <span class="field-label">Research Scope</span>
+              <input
+                id="commandSearch"
+                type="search"
+                autocomplete="off"
+                placeholder="搜索行业、板块、标的"
+                aria-label="search sector or asset"
+              />
+              <div id="searchResults" class="search-results" hidden></div>
+            </div>
+            <div class="segmented" id="horizonSegment" aria-label="horizon filter">
+              <button class="active" data-horizon="all">全部</button>
+              <button data-horizon="long">长期</button>
+              <button data-horizon="medium">中期</button>
+              <button data-horizon="short">短期</button>
+            </div>
+            <button id="openConfigBtn" class="icon-button" title="Configuration">⚙</button>
             <button id="refreshBtn" class="icon-button" title="Refresh">↻</button>
           </div>
         </header>
@@ -59,6 +69,10 @@
               <div class="panel-head">
                 <h2>行业雷达矩阵</h2>
                 <span id="radarCount"></span>
+              </div>
+              <div class="panel-actions">
+                <button class="text-button" data-open-config="sectors">添加行业</button>
+                <button class="text-button" data-open-config="assets">添加标的</button>
               </div>
               <div class="sector-matrix" id="sectorMatrix"></div>
             </div>
@@ -102,6 +116,9 @@
               <h2>Sector Radar</h2>
               <span>长期 / 中期 / 短期</span>
             </div>
+            <div class="panel-actions">
+              <button class="text-button" data-open-config="sectors">维护行业池</button>
+            </div>
             <div class="radar-board" id="radarBoard"></div>
           </section>
         </section>
@@ -111,6 +128,9 @@
             <div class="panel-head">
               <h2>Watchlist Intelligence</h2>
               <span>研究池</span>
+            </div>
+            <div class="panel-actions">
+              <button class="text-button" data-open-config="assets">维护关注标的</button>
             </div>
             <div class="watch-grid" id="watchGrid"></div>
           </section>
@@ -122,26 +142,43 @@
               <h2>产业链知识图谱</h2>
               <span id="pathLabel">HBM → AI 服务器 → 存储芯片</span>
             </div>
+            <div class="graph-controls">
+              <select id="graphFocus" aria-label="graph focus"></select>
+              <select id="graphDepth" aria-label="graph depth">
+                <option value="1">一跳</option>
+                <option value="2" selected>二跳</option>
+                <option value="3">三跳</option>
+              </select>
+              <button id="graphTraceBtn" class="text-button">刷新图谱</button>
+            </div>
             <canvas id="graphCanvas" width="1200" height="520" aria-label="knowledge graph"></canvas>
+            <div class="path-list" id="pathList"></div>
           </section>
         </section>
 
         <section id="settings" class="view">
           <section class="settings-layout">
-            <div class="panel">
+            <div class="panel config-panel">
               <div class="panel-head">
-                <h2>数据源接口</h2>
-                <span>Provider</span>
+                <h2>本地配置</h2>
+                <span id="saveState">LocalStorage</span>
               </div>
-              <div class="provider-list" id="providerList"></div>
+              <div class="config-tabs" id="configTabs">
+                <button class="active" data-config-tab="sectors">行业</button>
+                <button data-config-tab="assets">标的</button>
+                <button data-config-tab="emails">邮箱</button>
+                <button data-config-tab="llm">LLM</button>
+                <button data-config-tab="providers">数据源</button>
+              </div>
+              <div id="configPane" class="config-pane"></div>
             </div>
-            <div class="panel">
+            <aside class="panel config-preview-panel">
               <div class="panel-head">
-                <h2>通知目标</h2>
-                <span>Email</span>
+                <h2>配置预览</h2>
+                <button id="exportConfigBtn" class="icon-button" title="Export config">⇩</button>
               </div>
-              <div class="email-list" id="emailList"></div>
-            </div>
+              <pre id="configPreview" class="config-preview"></pre>
+            </aside>
           </section>
         </section>
 
@@ -151,7 +188,8 @@
       </main>
     </div>
 
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
     <script src="./app.js"></script>
   </body>
 </html>
-
