@@ -1,0 +1,42 @@
+email_targets:
+  - id: "email_001"
+    name: "Main Inbox"
+    address: "user@example.com"
+    enabled: true
+    report_types:
+      - "pre_market"
+      - "post_market"
+      - "weekly"
+      - "major_alert"
+      - "risk_alert"
+      - "position_window_change"
+    sectors:
+      - "AI算力"
+      - "存储芯片"
+    tickers:
+      - "688525.SH"
+      - "603986.SH"
+    frequency: "daily"
+    alert_threshold:
+      impact_score: 70
+      risk_score: 60
+    last_send_status: "success"
+    last_sent_at: null
+
+  - id: "email_002"
+    name: "Risk Only"
+    address: "risk@example.com"
+    enabled: false
+    report_types:
+      - "major_alert"
+      - "risk_alert"
+      - "position_window_change"
+    sectors: []
+    tickers: []
+    frequency: "realtime"
+    alert_threshold:
+      impact_score: 80
+      risk_score: 65
+    last_send_status: null
+    last_sent_at: null
+

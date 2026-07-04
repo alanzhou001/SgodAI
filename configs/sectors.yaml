@@ -1,0 +1,46 @@
+sectors:
+  - id: "sector_ai_compute"
+    name: "AI算力"
+    cycle_horizon: "long"
+    focus_level: "high"
+    drivers:
+      - "资本开支"
+      - "GPU供给"
+      - "云厂商需求"
+    risks:
+      - "估值拥挤"
+      - "海外限制"
+    indicators:
+      - "海外龙头资本开支"
+      - "服务器订单"
+
+  - id: "sector_memory"
+    name: "存储芯片"
+    cycle_horizon: "medium"
+    focus_level: "high"
+    drivers:
+      - "价格周期"
+      - "库存变化"
+      - "HBM需求"
+    risks:
+      - "价格回落"
+      - "供给扩张"
+    indicators:
+      - "DRAM价格"
+      - "NAND价格"
+
+  - id: "sector_biotech"
+    name: "创新药"
+    cycle_horizon: "long"
+    focus_level: "medium"
+    drivers:
+      - "临床数据"
+      - "BD交易"
+      - "医保政策"
+    risks:
+      - "研发失败"
+      - "监管不确定性"
+    indicators:
+      - "临床读出"
+      - "授权交易金额"
+

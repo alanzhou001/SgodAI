@@ -1,0 +1,27 @@
+agents:
+  research_assistant:
+    enabled: true
+    mode: "local_http"
+    endpoint: "http://127.0.0.1:18789/agent/market-radar"
+
+  openclaw:
+    enabled: false
+    mode: "local_http"
+    endpoint: "http://127.0.0.1:18789"
+    agent_name: "market-radar"
+
+  mcp:
+    enabled: false
+    mode: "mcp"
+    servers:
+      - name: "finance-data"
+        command: "python"
+        args:
+          - "-m"
+          - "mcp_finance_server"
+
+  qq_bot:
+    enabled: false
+    mode: "websocket"
+    endpoint: "ws://127.0.0.1:3001"
+

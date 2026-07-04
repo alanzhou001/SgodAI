@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SgodAI Market Radar</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar" aria-label="Primary">
+        <div class="brand">
+          <span class="brand-mark">S</span>
+          <div>
+            <strong>SgodAI</strong>
+            <span>Market Radar</span>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav-item active" data-view="dashboard" title="Dashboard">⌘</button>
+          <button class="nav-item" data-view="radar" title="Sector Radar">◎</button>
+          <button class="nav-item" data-view="watchlist" title="Watchlist">◫</button>
+          <button class="nav-item" data-view="graph" title="Knowledge Graph">⌬</button>
+          <button class="nav-item" data-view="settings" title="Providers">⚙</button>
+        </nav>
+
+        <div class="sidebar-foot">
+          <span id="clock">--:--</span>
+          <span>Local</span>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div class="title-block">
+            <h1>SgodAI Market Radar</h1>
+            <p>Core Engine + Agent Copilot</p>
+          </div>
+          <div class="toolbar">
+            <select id="sectorFilter" aria-label="sector filter">
+              <option value="all">全部行业</option>
+            </select>
+            <select id="horizonFilter" aria-label="horizon filter">
+              <option value="all">全部周期</option>
+              <option value="long">长期</option>
+              <option value="medium">中期</option>
+              <option value="short">短期</option>
+            </select>
+            <button id="refreshBtn" class="icon-button" title="Refresh">↻</button>
+          </div>
+        </header>
+
+        <section id="dashboard" class="view active">
+          <div class="metrics-grid" id="metricsGrid"></div>
+
+          <section class="split">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>行业雷达矩阵</h2>
+                <span id="radarCount"></span>
+              </div>
+              <div class="sector-matrix" id="sectorMatrix"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h2>异常信号</h2>
+                <span>实时</span>
+              </div>
+              <div class="alert-list" id="alertList"></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>仓位窗口状态</h2>
+              <span>可追溯</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>标的</th>
+                    <th>行业</th>
+                    <th>状态</th>
+                    <th>Impact</th>
+                    <th>Trend</th>
+                    <th>Risk</th>
+                    <th>证据</th>
+                  </tr>
+                </thead>
+                <tbody id="positionTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="radar" class="view">
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Sector Radar</h2>
+              <span>长期 / 中期 / 短期</span>
+            </div>
+            <div class="radar-board" id="radarBoard"></div>
+          </section>
+        </section>
+
+        <section id="watchlist" class="view">
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Watchlist Intelligence</h2>
+              <span>研究池</span>
+            </div>
+            <div class="watch-grid" id="watchGrid"></div>
+          </section>
+        </section>
+
+        <section id="graph" class="view">
+          <section class="panel graph-panel">
+            <div class="panel-head">
+              <h2>产业链知识图谱</h2>
+              <span id="pathLabel">HBM → AI 服务器 → 存储芯片</span>
+            </div>
+            <canvas id="graphCanvas" width="1200" height="520" aria-label="knowledge graph"></canvas>
+          </section>
+        </section>
+
+        <section id="settings" class="view">
+          <section class="settings-layout">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>数据源接口</h2>
+                <span>Provider</span>
+              </div>
+              <div class="provider-list" id="providerList"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <h2>通知目标</h2>
+                <span>Email</span>
+              </div>
+              <div class="email-list" id="emailList"></div>
+            </div>
+          </section>
+        </section>
+
+        <footer class="disclaimer">
+          本系统不构成投资建议，不提供自动交易功能，不直接输出买入或卖出指令。所有内容仅作为研究线索、信息整理和风险提示。
+        </footer>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
+

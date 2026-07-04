@@ -1,0 +1,19 @@
+watchlists:
+  - id: "wl_core"
+    name: "Core Research Pool"
+    enabled: true
+    sectors:
+      - "AI算力"
+      - "HBM"
+      - "存储芯片"
+      - "半导体设备"
+      - "创新药"
+    tickers:
+      - "688525.SH"
+      - "603986.SH"
+      - "NVDA.US"
+      - "TSM.US"
+    alert_threshold:
+      impact_score: 70
+      risk_score: 60
+

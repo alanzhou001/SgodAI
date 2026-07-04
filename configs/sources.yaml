@@ -1,0 +1,42 @@
+data_sources:
+  market_data:
+    provider: "akshare"
+    enabled: false
+    api_key_env: null
+    refresh_interval_minutes: 15
+
+  announcement:
+    provider: "exchange_adapter"
+    enabled: false
+    markets:
+      - "A-share"
+      - "HK"
+      - "US"
+
+  news:
+    provider: "rss"
+    enabled: true
+    sources:
+      - name: "caixin"
+        weight: 0.9
+      - name: "cls"
+        weight: 0.8
+      - name: "reuters"
+        weight: 0.95
+
+  financial_reports:
+    provider: "filing_adapter"
+    enabled: false
+
+  policy:
+    provider: "policy_rss"
+    enabled: false
+    keywords:
+      - "人工智能"
+      - "半导体"
+      - "创新药"
+
+  sentiment:
+    provider: "custom"
+    enabled: false
+

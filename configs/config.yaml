@@ -1,0 +1,27 @@
+app:
+  name: "SgodAI Market Radar"
+  mode: "local_first"
+  timezone: "Asia/Shanghai"
+  locale: "zh-CN"
+
+storage:
+  database_url: "sqlite:///data/sgodai.sqlite"
+  raw_payload_dir: "data/raw"
+  report_dir: "data/reports"
+  backup_dir: "data/backups"
+
+reports:
+  default_language: "zh-CN"
+  enable_llm_polish: true
+  include_disclaimer: true
+  schedules:
+    pre_market: "08:20"
+    post_market: "17:30"
+    weekly: "Friday 18:30"
+
+risk_control:
+  prohibit_auto_trading: true
+  prohibit_buy_sell_commands: true
+  require_evidence_refs: true
+  require_ai_confidence: true
+

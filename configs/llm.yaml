@@ -1,0 +1,34 @@
+llm:
+  enabled: true
+  default_provider: "openai_compatible"
+
+  providers:
+    openai_compatible:
+      enabled: true
+      base_url: "https://api.openai.com/v1"
+      api_key_env: "OPENAI_API_KEY"
+      model: "gpt-4.1"
+
+    deepseek:
+      enabled: false
+      base_url: "https://api.deepseek.com/v1"
+      api_key_env: "DEEPSEEK_API_KEY"
+      model: "deepseek-chat"
+
+    local_ollama:
+      enabled: false
+      base_url: "http://127.0.0.1:11434"
+      model: "qwen2.5:14b"
+
+    local_vllm:
+      enabled: false
+      base_url: "http://127.0.0.1:8000/v1"
+      model: "local-finance-model"
+
+output_policy:
+  require_structured_result: true
+  require_evidence_refs: true
+  require_confidence: true
+  require_risk_notes: true
+  require_disclaimer: true
+
