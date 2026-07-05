@@ -2243,6 +2243,9 @@ function renderSectorConfig() {
 
 function renderAssetConfig() {
   const catalogItems = allAssets();
+  const sectorOptions = allSectors()
+    .map((sector) => `<option value="${esc(sector.name)}">${esc(sector.name)}</option>`)
+    .join("");
   return `
     <div class="asset-config-layout">
       <form class="config-form compact-config-form" id="assetForm">
@@ -2251,7 +2254,8 @@ function renderAssetConfig() {
           <label>名称<input name="name" required placeholder="例如：中芯国际"></label>
           <label>代码<input name="ticker" placeholder="例如：688981.SH"></label>
           <label>市场<select name="market"><option value="">自动</option><option>A-share</option><option>HK</option><option>US</option><option>ETF</option></select></label>
-          <label>行业<input name="sector" placeholder="例如：半导体设备"></label>
+          <label>所属行业<select name="sector"><option value="">自动 / 待分类</option>${sectorOptions}</select></label>
+          <label>自定义行业<input name="customSector" placeholder="未在列表中时填写"></label>
           <div class="form-actions asset-form-actions">
             <button class="primary-button" type="submit">添加标的</button>
             <button class="text-button" type="button" data-action="assist-asset-form">AI 补全</button>
@@ -2555,8 +2559,17 @@ async function assistAssetForm(form) {
   });
   form.elements.ticker.value = form.elements.ticker.value || result.ticker || "";
   form.elements.market.value = form.elements.market.value || result.market || "A-share";
-  form.elements.sector.value = form.elements.sector.value || result.sector || "";
-  upsertValidatedAssets(result.validatedAssets, result.sector || form.elements.sector?.value || "待分类");
+  const assistedSector = result.sector || "";
+  const matchedSector = assistedSector ? findSectorByName(assistedSector) : null;
+  if (!form.elements.sector.value && matchedSector) {
+    form.elements.sector.value = matchedSector.name;
+  } else if (!form.elements.customSector.value && assistedSector) {
+    form.elements.customSector.value = assistedSector;
+  }
+  upsertValidatedAssets(
+    result.validatedAssets,
+    form.elements.customSector?.value || form.elements.sector?.value || assistedSector || "待分类",
+  );
   showToast(`${provider} 已生成标的配置草稿`);
 }
 
@@ -2605,15 +2618,18 @@ function createAsset(form) {
   const data = new FormData(form);
   const name = String(data.get("name") || "").trim();
   if (!name) return;
+  const selectedSector = String(data.get("sector") || "").trim();
+  const customSector = String(data.get("customSector") || "").trim();
+  const preferredSector = customSector || selectedSector;
   const draft = inferAssetDraft(name, {
     ticker: data.get("ticker"),
     market: data.get("market"),
-    sector: data.get("sector"),
+    sector: preferredSector,
   });
   const ticker =
     String(data.get("ticker") || draft.ticker || "").trim().toUpperCase() ||
     `LOCAL.${slug(name).toUpperCase() || Date.now().toString(36).toUpperCase()}`;
-  const sector = String(data.get("sector") || draft.sector || "待分类").trim();
+  const sector = String(preferredSector || draft.sector || "待分类").trim();
   const asset = {
     ticker,
     name,
