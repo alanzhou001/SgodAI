@@ -11,9 +11,9 @@ llm:
 
     deepseek:
       enabled: true
-      base_url: "https://api.deepseek.com/v1"
+      base_url: "https://api.deepseek.com"
       api_key_env: "DEEPSEEK_API_KEY"
-      model: "deepseek-chat"
+      model: "deepseek-v4-flash"
 
     local_ollama:
       enabled: false

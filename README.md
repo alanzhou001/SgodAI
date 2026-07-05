@@ -68,6 +68,8 @@ Fill at least:
 DEEPSEEK_API_KEY=sk-...
 ```
 
+The default DeepSeek OpenAI-compatible endpoint is `https://api.deepseek.com`, with `deepseek-v4-flash` as the low-latency research assistant model.
+
 2. Install optional real-data dependencies:
 
 ```bash

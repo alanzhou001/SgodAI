@@ -38,8 +38,8 @@ class RealDataAdapterTest(TestCase):
     def test_openai_compatible_provider_wraps_structured_output(self) -> None:
         provider = OpenAICompatibleLLMProvider(
             provider_id="deepseek",
-            base_url="https://api.deepseek.com/v1",
-            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+            model="deepseek-v4-flash",
             api_key="unit",
         )
         provider._request_structured_result = lambda task, payload: {  # type: ignore[method-assign]
@@ -57,6 +57,6 @@ class RealDataAdapterTest(TestCase):
         output = provider.summarize_event(event)
 
         self.assertEqual(output.provider, "deepseek")
-        self.assertEqual(output.model, "deepseek-chat")
+        self.assertEqual(output.model, "deepseek-v4-flash")
         self.assertEqual(output.evidence_refs, ["evt_unit"])
         self.assertAlmostEqual(output.confidence, 0.81)

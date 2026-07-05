@@ -5,6 +5,11 @@ from datetime import datetime
 from typing import Any
 
 try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional dependency in realdata profile
+    load_dotenv = None  # type: ignore
+
+try:
     from fastapi import FastAPI, HTTPException
 except ImportError:  # pragma: no cover - exercised only before optional deps are installed
     FastAPI = None  # type: ignore
@@ -13,6 +18,9 @@ except ImportError:  # pragma: no cover - exercised only before optional deps ar
 from app.llm.openai_compatible import OpenAICompatibleLLMProvider
 from app.models import Asset, Event
 from app.providers.akshare_provider import AkShareMarketDataProvider
+
+if load_dotenv is not None:
+    load_dotenv()
 
 
 def create_app() -> Any:
@@ -75,8 +83,8 @@ def create_app() -> Any:
 def _deepseek_provider() -> OpenAICompatibleLLMProvider:
     return OpenAICompatibleLLMProvider(
         provider_id="deepseek",
-        base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-        model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+        base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"),
         api_key_env="DEEPSEEK_API_KEY",
     )
 
