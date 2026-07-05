@@ -425,6 +425,35 @@ input,
   cursor: pointer;
 }
 
+.text-button:disabled,
+.primary-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.text-button.is-loading,
+.primary-button.is-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.button-spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 760ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .text-button:hover,
 .primary-button:hover {
   border-color: var(--blue);

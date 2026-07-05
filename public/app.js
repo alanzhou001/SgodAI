@@ -2712,7 +2712,24 @@ function showToast(message) {
   toastTimer = setTimeout(() => toast.classList.remove("show"), 1700);
 }
 
-async function assistSectorForm(form) {
+function setButtonLoading(button, loading, label = "补全中") {
+  if (!button) return;
+  if (loading) {
+    button.dataset.originalText = button.textContent.trim();
+    button.disabled = true;
+    button.classList.add("is-loading");
+    button.setAttribute("aria-busy", "true");
+    button.innerHTML = `<span class="button-spinner" aria-hidden="true"></span><span>${esc(label)}</span>`;
+    return;
+  }
+  button.disabled = false;
+  button.classList.remove("is-loading");
+  button.removeAttribute("aria-busy");
+  button.textContent = button.dataset.originalText || "AI 补全";
+  delete button.dataset.originalText;
+}
+
+async function assistSectorForm(form, button = null) {
   if (!form) return;
   const name = form.elements.name?.value.trim();
   if (!name) {
@@ -2720,21 +2737,26 @@ async function assistSectorForm(form) {
     form.elements.name?.focus();
     return;
   }
-  const { provider, result } = await requestLlmAssistance("sector", { name });
-  upsertValidatedAssets(result.validatedAssets, name);
-  if (!form.elements.horizon.value) form.elements.horizon.value = result.horizon || "medium";
-  form.elements.driver.value = form.elements.driver.value || result.driver || "";
-  form.elements.indicators.value = form.elements.indicators.value || (result.indicators || []).join("，");
-  form.elements.upstream.value = form.elements.upstream.value || (result.upstream || []).join("，");
-  form.elements.downstream.value = form.elements.downstream.value || (result.downstream || []).join("，");
-  const relatedTickers = (result.relatedTickers || []).join("，");
-  if (relatedTickers) form.elements.relatedTickers.value = relatedTickers;
-  form.dataset.assistRisks = result.risks || "";
-  form.dataset.assistSource = provider;
-  showToast(`${provider} 已生成行业画像草稿`);
+  setButtonLoading(button, true);
+  try {
+    const { provider, result } = await requestLlmAssistance("sector", { name });
+    upsertValidatedAssets(result.validatedAssets, name);
+    if (!form.elements.horizon.value) form.elements.horizon.value = result.horizon || "medium";
+    form.elements.driver.value = form.elements.driver.value || result.driver || "";
+    form.elements.indicators.value = form.elements.indicators.value || (result.indicators || []).join("，");
+    form.elements.upstream.value = form.elements.upstream.value || (result.upstream || []).join("，");
+    form.elements.downstream.value = form.elements.downstream.value || (result.downstream || []).join("，");
+    const relatedTickers = (result.relatedTickers || []).join("，");
+    if (relatedTickers) form.elements.relatedTickers.value = relatedTickers;
+    form.dataset.assistRisks = result.risks || "";
+    form.dataset.assistSource = provider;
+    showToast(`${provider} 已生成行业画像草稿`);
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
-async function assistAssetForm(form) {
+async function assistAssetForm(form, button = null) {
   if (!form) return;
   const name = form.elements.name?.value.trim();
   if (!name) {
@@ -2742,26 +2764,31 @@ async function assistAssetForm(form) {
     form.elements.name?.focus();
     return;
   }
-  const { provider, result } = await requestLlmAssistance("asset", {
-    name,
-    ticker: form.elements.ticker?.value,
-    market: form.elements.market?.value,
-    sector: form.elements.sector?.value,
-  });
-  form.elements.ticker.value = form.elements.ticker.value || result.ticker || "";
-  form.elements.market.value = form.elements.market.value || result.market || "A-share";
-  const assistedSector = result.sector || "";
-  const matchedSector = assistedSector ? findSectorByName(assistedSector) : null;
-  if (!form.elements.sector.value && matchedSector) {
-    form.elements.sector.value = matchedSector.name;
-  } else if (!form.elements.customSector.value && assistedSector) {
-    form.elements.customSector.value = assistedSector;
+  setButtonLoading(button, true);
+  try {
+    const { provider, result } = await requestLlmAssistance("asset", {
+      name,
+      ticker: form.elements.ticker?.value,
+      market: form.elements.market?.value,
+      sector: form.elements.sector?.value,
+    });
+    form.elements.ticker.value = form.elements.ticker.value || result.ticker || "";
+    form.elements.market.value = form.elements.market.value || result.market || "A-share";
+    const assistedSector = result.sector || "";
+    const matchedSector = assistedSector ? findSectorByName(assistedSector) : null;
+    if (!form.elements.sector.value && matchedSector) {
+      form.elements.sector.value = matchedSector.name;
+    } else if (!form.elements.customSector.value && assistedSector) {
+      form.elements.customSector.value = assistedSector;
+    }
+    upsertValidatedAssets(
+      result.validatedAssets,
+      form.elements.customSector?.value || form.elements.sector?.value || assistedSector || "待分类",
+    );
+    showToast(`${provider} 已生成标的配置草稿`);
+  } finally {
+    setButtonLoading(button, false);
   }
-  upsertValidatedAssets(
-    result.validatedAssets,
-    form.elements.customSector?.value || form.elements.sector?.value || assistedSector || "待分类",
-  );
-  showToast(`${provider} 已生成标的配置草稿`);
 }
 
 function createSector(form) {
@@ -3029,8 +3056,8 @@ function bindEvents() {
     if (action === "delete-email") deleteEmail(id);
     if (action === "toggle-provider") toggleProvider(id);
     if (action === "toggle-llm") toggleLlm(id);
-    if (action === "assist-sector-form") assistSectorForm(button.closest("form"));
-    if (action === "assist-asset-form") assistAssetForm(button.closest("form"));
+    if (action === "assist-sector-form") assistSectorForm(button.closest("form"), button);
+    if (action === "assist-asset-form") assistAssetForm(button.closest("form"), button);
     if (action === "set-default-llm") {
       appConfig.llm.defaultProvider = id;
       persistConfig("默认模型已更新");
