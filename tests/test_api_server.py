@@ -41,6 +41,7 @@ class ApiServerTest(TestCase):
         self.assertIn("alpha_vantage_market_data", market_ids)
         self.assertIn("fmp_market_data", market_ids)
         self.assertIn("yfinance_market_data", market_ids)
+        self.assertIn("yahoo_chart_market_data", market_ids)
         self.assertIn("finnhub_news", information_ids)
         self.assertIn("fmp_news", information_ids)
         self.assertIn("chinese_finance_scraper", information_ids)

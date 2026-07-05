@@ -37,6 +37,7 @@ from app.providers.rss_provider import RSSNewsProvider, RSSSource
 from app.providers.registry import provider_registry
 from app.providers.sina_market_provider import SinaAShareMarketDataProvider, SinaMarketDataError
 from app.providers.sina_news_provider import SINA_FINANCE_LIDS, SinaFinanceNewsProvider
+from app.providers.yahoo_provider import YahooChartMarketDataError, YahooChartMarketDataProvider
 
 __all__ = [
     "AkShareDisclosureProvider",
@@ -69,6 +70,8 @@ __all__ = [
     "SinaAShareMarketDataProvider",
     "SinaFinanceNewsProvider",
     "SinaMarketDataError",
+    "YahooChartMarketDataError",
+    "YahooChartMarketDataProvider",
     "a_share_exchange",
     "hkex_query_terms",
     "match_score",

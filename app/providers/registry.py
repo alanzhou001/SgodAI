@@ -23,6 +23,14 @@ def provider_registry() -> dict[str, list[dict[str, Any]]]:
                 "notes": "A股实时/历史行情兜底接口。",
             },
             {
+                "id": "yahoo_chart_market_data",
+                "name": "Yahoo Chart Fallback",
+                "status": "active_auxiliary",
+                "markets": ["US", "HK", "ETF", "A-share"],
+                "auth": "none",
+                "notes": "免费非官方 OHLCV 兜底源，适合港股/美股 K 线辅助校验，不建议作为机构生产主源。",
+            },
+            {
                 "id": "tushare_market_data",
                 "name": "Tushare Pro",
                 "status": "reserved",

@@ -15,6 +15,7 @@ from app.providers import (
     hkex_query_terms,
     match_score,
     SinaFinanceNewsProvider,
+    YahooChartMarketDataProvider,
     normalize_market_ticker,
 )
 
@@ -23,6 +24,12 @@ class RealDataAdapterTest(TestCase):
     def test_ticker_normalization_for_a_h_markets(self) -> None:
         self.assertEqual(normalize_market_ticker("688525.SH"), ("A-share", "688525"))
         self.assertEqual(normalize_market_ticker("700.HK"), ("HK", "00700"))
+
+    def test_yahoo_chart_provider_maps_hk_us_and_a_share_symbols(self) -> None:
+        self.assertEqual(YahooChartMarketDataProvider.yahoo_symbol("700.HK"), "0700.HK")
+        self.assertEqual(YahooChartMarketDataProvider.yahoo_symbol("NVDA.US"), "NVDA")
+        self.assertEqual(YahooChartMarketDataProvider.yahoo_symbol("600519.SH"), "600519.SS")
+        self.assertEqual(YahooChartMarketDataProvider.yahoo_symbol("300750.SZ"), "300750.SZ")
 
     def test_asset_search_maps_a_share_exchange_suffixes(self) -> None:
         self.assertEqual(a_share_exchange("688525"), "SH")
@@ -140,6 +147,37 @@ class RealDataAdapterTest(TestCase):
         self.assertEqual(rows[0]["trade_date"], "2026-07-01")
         self.assertEqual(rows[1]["close"], 11.8)
         self.assertEqual(rows[1]["source"], "sina")
+
+    def test_yahoo_chart_provider_parses_ohlcv_payload(self) -> None:
+        payload = {
+            "chart": {
+                "result": [
+                    {
+                        "timestamp": [1783267200, 1783353600],
+                        "indicators": {
+                            "quote": [
+                                {
+                                    "open": [100.0, 102.0],
+                                    "high": [103.0, 105.0],
+                                    "low": [99.0, 101.0],
+                                    "close": [102.0, 104.0],
+                                    "volume": [1000, 1200],
+                                }
+                            ]
+                        },
+                    }
+                ],
+                "error": None,
+            }
+        }
+
+        rows = YahooChartMarketDataProvider.parse_payload("NVDA.US", payload)
+
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["ticker"], "NVDA.US")
+        self.assertEqual(rows[0]["trade_date"], "2026-07-05")
+        self.assertEqual(rows[1]["close"], 104.0)
+        self.assertEqual(rows[1]["source"], "yahoo_chart_market_data")
 
     def test_openai_compatible_provider_wraps_structured_output(self) -> None:
         provider = OpenAICompatibleLLMProvider(

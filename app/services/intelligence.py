@@ -12,6 +12,7 @@ from app.providers import (
     RSSSource,
     SinaAShareMarketDataProvider,
     SinaFinanceNewsProvider,
+    YahooChartMarketDataProvider,
     normalize_market_ticker,
 )
 from app.providers.akshare_provider import AkShareMarketDataProvider
@@ -32,7 +33,11 @@ class AssetIntelligenceService:
         signal_store: SQLiteSignalStore | None = None,
     ) -> None:
         self.market_provider = market_provider or AkShareMarketDataProvider()
-        self.market_fallback_provider = market_fallback_provider or SinaAShareMarketDataProvider()
+        self.market_fallback_providers = (
+            [market_fallback_provider]
+            if market_fallback_provider is not None
+            else [SinaAShareMarketDataProvider(), YahooChartMarketDataProvider()]
+        )
         self.news_provider = news_provider
         self.disclosure_provider = disclosure_provider or CombinedDisclosureProvider()
         self.scoring_engine = scoring_engine or ScoringEngine()
@@ -112,21 +117,16 @@ class AssetIntelligenceService:
         until: datetime,
         errors: list[dict[str, str]],
     ) -> tuple[list[dict[str, Any]], str]:
-        try:
-            rows = self.market_provider.fetch_ohlcv(ticker, since=since, until=until)
-            return rows, getattr(self.market_provider, "provider_id", "market_data")
-        except Exception as exc:  # noqa: BLE001
-            errors.append({"source": getattr(self.market_provider, "provider_id", "market_data"), "error": str(exc)})
-        try:
-            rows = self.market_fallback_provider.fetch_ohlcv(ticker, since=since, until=until)
-            return rows, getattr(self.market_fallback_provider, "provider_id", "market_fallback")
-        except Exception as exc:  # noqa: BLE001
-            errors.append(
-                {
-                    "source": getattr(self.market_fallback_provider, "provider_id", "market_fallback"),
-                    "error": str(exc),
-                }
-            )
+        providers = [self.market_provider, *self.market_fallback_providers]
+        for provider in providers:
+            source = getattr(provider, "provider_id", "market_data")
+            try:
+                rows = provider.fetch_ohlcv(ticker, since=since, until=until)
+                if rows:
+                    return rows, source
+                errors.append({"source": source, "error": "empty OHLCV result"})
+            except Exception as exc:  # noqa: BLE001
+                errors.append({"source": source, "error": str(exc)})
         return [], "unavailable"
 
     def _safe_news(

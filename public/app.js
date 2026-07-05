@@ -639,6 +639,7 @@ const uiState = {
 const commandHiddenViews = new Set(["graph", "settings"]);
 const marketDataCache = new Map();
 const intelligenceCache = new Map();
+const klineInteractionState = new Map();
 let searchTimer = null;
 
 function clone(value) {
@@ -1920,6 +1921,7 @@ function mockKlineData(asset, count = 48) {
       close,
       high,
       low,
+      volumeRaw: 0.8 + ((seed + index * 17) % 100) / 100,
       volume: 0.8 + ((seed + index * 17) % 100) / 100,
     };
   });
@@ -1950,6 +1952,7 @@ function mapOhlcvRows(rows) {
     close: row.close,
     high: row.high,
     low: row.low,
+    volumeRaw: row.volumeRaw,
     volume: Math.max(0.2, (row.volumeRaw / maxVolume) * 2.2),
   }));
 }
@@ -1981,6 +1984,140 @@ function ensureRealKline(asset) {
     .finally(() => requestAnimationFrame(drawDetailCharts));
 }
 
+function klineState(ticker) {
+  if (!klineInteractionState.has(ticker)) {
+    klineInteractionState.set(ticker, { hoverIndex: null, rangeStart: null, rangeEnd: null });
+  }
+  return klineInteractionState.get(ticker);
+}
+
+function klineBarsForAsset(asset) {
+  const cached = marketDataCache.get(asset.ticker);
+  const realBars = cached?.bars?.length ? cached.bars : null;
+  return {
+    cached,
+    bars: realBars || mockKlineData(asset),
+    real: Boolean(realBars),
+  };
+}
+
+function klineLayout(rect, bars) {
+  const top = 18;
+  const bottom = rect.height - 54;
+  const left = 46;
+  const right = rect.width - 12;
+  const chartWidth = Math.max(20, right - left);
+  const chartHeight = Math.max(20, bottom - top);
+  const max = Math.max(...bars.map((bar) => bar.high));
+  const min = Math.min(...bars.map((bar) => bar.low));
+  const range = max - min || 1;
+  const slot = chartWidth / bars.length;
+  return {
+    top,
+    bottom,
+    left,
+    right,
+    chartWidth,
+    chartHeight,
+    max,
+    min,
+    range,
+    slot,
+    y: (value) => top + ((max - value) / range) * chartHeight,
+    x: (index) => left + index * slot + slot / 2,
+  };
+}
+
+function klineIndexAt(canvas, event, bars) {
+  const rect = canvas.getBoundingClientRect();
+  const layout = klineLayout(rect, bars);
+  const x = event.clientX - rect.left;
+  if (x < layout.left || x > layout.right) return null;
+  return clamp(Math.floor((x - layout.left) / layout.slot), 0, bars.length - 1);
+}
+
+function klineSelection(state) {
+  if (state.rangeStart === null) return null;
+  const end = state.rangeEnd ?? state.hoverIndex;
+  if (end === null) return null;
+  return {
+    start: Math.min(state.rangeStart, end),
+    end: Math.max(state.rangeStart, end),
+    fixed: state.rangeEnd !== null,
+  };
+}
+
+function percentChange(from, to) {
+  if (!from || !to || !from.close) return 0;
+  return ((to.close / from.close) - 1) * 100;
+}
+
+function formatPrice(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "-";
+  return number >= 100 ? number.toFixed(2) : number.toFixed(3);
+}
+
+function formatPercent(value) {
+  const number = Number(value) || 0;
+  return `${number >= 0 ? "+" : ""}${number.toFixed(2)}%`;
+}
+
+function drawKlineTooltip(ctx, rect, layout, bar, index, state, styles) {
+  const x = layout.x(index);
+  const y = layout.y(bar.close);
+  const text = styles.getPropertyValue("--text");
+  const muted = styles.getPropertyValue("--muted");
+  const line = styles.getPropertyValue("--line");
+  const surface = styles.getPropertyValue("--surface");
+  ctx.save();
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(x, layout.top);
+  ctx.lineTo(x, layout.bottom);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(layout.left, y);
+  ctx.lineTo(layout.right, y);
+  ctx.stroke();
+
+  const rows = [
+    `${bar.label}`,
+    `O ${formatPrice(bar.open)}  H ${formatPrice(bar.high)}`,
+    `L ${formatPrice(bar.low)}  C ${formatPrice(bar.close)}`,
+    `Vol ${formatPrice(bar.volumeRaw ?? bar.volume)}`,
+  ];
+  const width = 178;
+  const height = 82;
+  const boxX = x > rect.width - width - 18 ? x - width - 10 : x + 10;
+  const boxY = Math.max(8, Math.min(y - 44, rect.height - height - 12));
+  roundedRect(ctx, boxX, boxY, width, height, 8);
+  ctx.fillStyle = surface;
+  ctx.fill();
+  ctx.strokeStyle = line;
+  ctx.stroke();
+  ctx.textAlign = "left";
+  rows.forEach((row, rowIndex) => {
+    ctx.fillStyle = rowIndex === 0 ? text : muted;
+    ctx.font = `${rowIndex === 0 ? "600 " : ""}11px -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.fillText(row, boxX + 10, boxY + 18 + rowIndex * 16);
+  });
+  const selection = klineSelection(state);
+  if (selection) {
+    const startBar = state._bars?.[selection.start];
+    const endBar = state._bars?.[selection.end];
+    if (startBar && endBar) {
+      const pct = percentChange(startBar, endBar);
+      ctx.fillStyle = pct >= 0 ? styles.getPropertyValue("--green") : styles.getPropertyValue("--red");
+      ctx.fillText(`区间 ${formatPercent(pct)}`, boxX + 96, boxY + 18);
+    }
+  }
+  ctx.restore();
+}
+
 function drawKlineChart(canvas) {
   const asset = findAssetByTicker(canvas.dataset.ticker);
   if (!asset) return;
@@ -2000,19 +2137,11 @@ function drawKlineChart(canvas) {
   const green = styles.getPropertyValue("--green");
   const red = styles.getPropertyValue("--red");
   const blue = styles.getPropertyValue("--blue");
-  const cached = marketDataCache.get(asset.ticker);
-  const realBars = cached?.bars?.length ? cached.bars : null;
-  const bars = realBars || mockKlineData(asset);
-  const top = 18;
-  const bottom = rect.height - 42;
-  const left = 42;
-  const right = rect.width - 12;
-  const chartWidth = right - left;
-  const chartHeight = bottom - top;
-  const max = Math.max(...bars.map((bar) => bar.high));
-  const min = Math.min(...bars.map((bar) => bar.low));
-  const range = max - min || 1;
-  const y = (value) => top + ((max - value) / range) * chartHeight;
+  const { cached, bars } = klineBarsForAsset(asset);
+  const state = klineState(asset.ticker);
+  state._bars = bars;
+  const layout = klineLayout(rect, bars);
+  const { top, bottom, left, right, chartWidth, chartHeight, max, min, y } = layout;
 
   ctx.strokeStyle = line;
   ctx.lineWidth = 1;
@@ -2031,10 +2160,20 @@ function drawKlineChart(canvas) {
     ctx.fillText(value.toFixed(1), left - 8, y(value) + 4);
   });
 
-  const slot = chartWidth / bars.length;
+  const selection = klineSelection(state);
+  if (selection) {
+    const x1 = layout.x(selection.start) - layout.slot / 2;
+    const x2 = layout.x(selection.end) + layout.slot / 2;
+    ctx.fillStyle = blue;
+    ctx.globalAlpha = selection.fixed ? 0.12 : 0.07;
+    ctx.fillRect(x1, top, x2 - x1, chartHeight);
+    ctx.globalAlpha = 1;
+  }
+
+  const slot = layout.slot;
   const candleWidth = clamp(slot * 0.58, 3, 9);
   bars.forEach((bar, index) => {
-    const x = left + index * slot + slot / 2;
+    const x = layout.x(index);
     const up = bar.close >= bar.open;
     ctx.strokeStyle = up ? green : red;
     ctx.fillStyle = up ? green : red;
@@ -2055,25 +2194,34 @@ function drawKlineChart(canvas) {
   ctx.lineWidth = 1.6;
   ctx.beginPath();
   bars.forEach((bar, index) => {
-    const x = left + index * slot + slot / 2;
+    const x = layout.x(index);
     const yy = y(bar.close);
     if (index === 0) ctx.moveTo(x, yy);
     else ctx.lineTo(x, yy);
   });
   ctx.stroke();
 
+  if (state.hoverIndex !== null && bars[state.hoverIndex]) {
+    drawKlineTooltip(ctx, rect, layout, bars[state.hoverIndex], state.hoverIndex, state, styles);
+  }
+
   ctx.fillStyle = text;
   ctx.textAlign = "left";
   ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
+  const selected = selection?.fixed ? (() => {
+    const startBar = bars[selection.start];
+    const endBar = bars[selection.end];
+    return ` · 区间 ${startBar.label} → ${endBar.label} ${formatPercent(percentChange(startBar, endBar))}`;
+  })() : "";
   const sourceLabel =
     cached?.status === "ok"
       ? `Real OHLCV · ${cached.source}`
       : cached?.status === "loading"
         ? "Loading real OHLCV..."
         : asset.market === "US"
-          ? "US market data adapter pending"
+          ? "Demo fallback · US/HK provider unavailable"
           : "Demo fallback · Real provider unavailable";
-  ctx.fillText(sourceLabel, left, rect.height - 14);
+  ctx.fillText(`${sourceLabel}${selected} · 点击两根K线测区间，双击清除`, left, rect.height - 18);
 }
 
 function drawDetailCharts() {
@@ -2762,6 +2910,57 @@ function updateInlineInput(input) {
   persistConfig("配置已更新");
 }
 
+function handleKlinePointerMove(event) {
+  const canvas = event.target.closest?.(".kline-chart");
+  if (!canvas) return;
+  const asset = findAssetByTicker(canvas.dataset.ticker);
+  if (!asset) return;
+  const { bars } = klineBarsForAsset(asset);
+  const index = klineIndexAt(canvas, event, bars);
+  const state = klineState(asset.ticker);
+  if (state.hoverIndex === index) return;
+  state.hoverIndex = index;
+  drawKlineChart(canvas);
+}
+
+function handleKlinePointerOut(event) {
+  const canvas = event.target.closest?.(".kline-chart");
+  if (!canvas || canvas.contains(event.relatedTarget)) return;
+  const asset = findAssetByTicker(canvas.dataset.ticker);
+  if (!asset) return;
+  const state = klineState(asset.ticker);
+  state.hoverIndex = null;
+  drawKlineChart(canvas);
+}
+
+function handleKlineClick(event) {
+  const canvas = event.target.closest?.(".kline-chart");
+  if (!canvas) return;
+  const asset = findAssetByTicker(canvas.dataset.ticker);
+  if (!asset) return;
+  const { bars } = klineBarsForAsset(asset);
+  const index = klineIndexAt(canvas, event, bars);
+  if (index === null) return;
+  const state = klineState(asset.ticker);
+  if (state.rangeStart === null || state.rangeEnd !== null) {
+    state.rangeStart = index;
+    state.rangeEnd = null;
+  } else {
+    state.rangeEnd = index;
+  }
+  state.hoverIndex = index;
+  drawKlineChart(canvas);
+}
+
+function handleKlineDoubleClick(event) {
+  const canvas = event.target.closest?.(".kline-chart");
+  if (!canvas) return;
+  const asset = findAssetByTicker(canvas.dataset.ticker);
+  if (!asset) return;
+  klineInteractionState.set(asset.ticker, { hoverIndex: null, rangeStart: null, rangeEnd: null });
+  drawKlineChart(canvas);
+}
+
 function bindEvents() {
   document.querySelector("#commandSearch").addEventListener("input", (event) => {
     uiState.query = event.target.value;
@@ -2837,6 +3036,11 @@ function bindEvents() {
       persistConfig("默认模型已更新");
     }
   });
+
+  document.addEventListener("pointermove", handleKlinePointerMove);
+  document.addEventListener("pointerout", handleKlinePointerOut);
+  document.addEventListener("click", handleKlineClick);
+  document.addEventListener("dblclick", handleKlineDoubleClick);
 
   document.addEventListener("submit", (event) => {
     event.preventDefault();

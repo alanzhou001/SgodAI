@@ -11,10 +11,20 @@ data_sources:
     fallback_chain:
       - "akshare_market_data"
       - "sina_a_share_market_data"
+      - "yahoo_chart_market_data"
       - "tushare_market_data"
       - "local_duckdb_market_store"
       - "local_postgres_market_store"
     reserved_providers:
+      yahoo_chart:
+        enabled: true
+        provider_id: "yahoo_chart_market_data"
+        markets:
+          - "US"
+          - "HK"
+          - "ETF"
+          - "A-share"
+        use_as: "free_auxiliary_ohlcv_fallback"
       tushare:
         enabled: false
         provider_id: "tushare_market_data"
