@@ -389,6 +389,11 @@ const uiState = {
   configTab: "sectors",
   graphFocus: appConfig.sectorIds[0] || "ai_compute",
   graphDepth: 2,
+  detail: {
+    type: null,
+    id: null,
+    fromView: "dashboard",
+  },
 };
 
 function clone(value) {
@@ -435,6 +440,22 @@ function uniqBy(items, keyFn) {
 
 function allAssets() {
   return [...assetCatalog, ...appConfig.customAssets];
+}
+
+function allSectors() {
+  return [...sectorCatalog, ...appConfig.customSectors];
+}
+
+function findSectorById(id) {
+  return allSectors().find((sector) => sector.id === id);
+}
+
+function findSectorByName(name) {
+  return allSectors().find((sector) => sector.name === name);
+}
+
+function findAssetByTicker(ticker) {
+  return allAssets().find((asset) => asset.ticker === ticker);
 }
 
 function activeLlmProvider() {
@@ -496,6 +517,16 @@ function relatedAssetsForSector(sector) {
   });
   const watched = currentData.assets.filter((asset) => asset.sector === sector.name);
   return uniqBy([...watched, ...explicit, ...semantic], (asset) => asset.ticker).slice(0, 5);
+}
+
+function assetsForSectorDetail(sector) {
+  const profile = sectorProfile(sector);
+  const byTicker = new Map(allAssets().map((asset) => [asset.ticker, asset]));
+  const explicit = profile.relatedTickers.map((ticker) => byTicker.get(ticker)).filter(Boolean);
+  const direct = allAssets().filter((asset) => asset.sector === sector.name);
+  const text = normalize([sector.name, profile.terms.join(" "), profile.upstream.join(" "), profile.downstream.join(" ")].join(" "));
+  const semantic = allAssets().filter((asset) => text.includes(normalize(asset.sector)));
+  return uniqBy([...direct, ...explicit, ...semantic], (asset) => asset.ticker);
 }
 
 function localLlmAssist(kind, payload) {
@@ -736,7 +767,7 @@ function renderSectorCards(target, boardMode = false) {
         (sector) => {
           const profile = sectorProfile(sector);
           return `
-            <article class="sector-card">
+            <article class="sector-card interactive-card" role="button" tabindex="0" data-action="open-sector-detail" data-id="${esc(sector.id)}" aria-label="查看 ${esc(sector.name)} 详情">
               <header>
                 <h3>${esc(sector.name)}</h3>
                 <span class="pill ${esc(sector.level)}">${horizonLabel(profile.horizon)}</span>
@@ -796,7 +827,7 @@ function renderWatchlist() {
     assets
       .map(
         (asset) => `
-          <article class="watch-card">
+          <article class="watch-card interactive-card" role="button" tabindex="0" data-action="open-asset-detail" data-id="${esc(asset.ticker)}" aria-label="查看 ${esc(asset.name)} 详情">
             <header>
               <h3>${esc(asset.name)} · ${esc(asset.ticker)}</h3>
               <span class="status ${statusClass(asset.state)}">${esc(asset.state)}</span>
@@ -1148,6 +1179,346 @@ function drawGraph() {
   }
 }
 
+function assetSentiment(asset) {
+  return Math.max(42, Math.round((asset.impact + asset.trend - asset.risk) / 2));
+}
+
+function chipList(items, emptyText = "待补充") {
+  const values = listFromValue(items);
+  if (!values.length) return `<span class="detail-chip muted">${esc(emptyText)}</span>`;
+  return values.map((item) => `<span class="detail-chip">${esc(item)}</span>`).join("");
+}
+
+function metricTiles(items) {
+  return `
+    <div class="detail-metrics">
+      ${items
+        .map(
+          ([label, value, note]) => `
+            <article class="metric detail-metric">
+              <span>${esc(label)}</span>
+              <strong>${esc(value)}</strong>
+              <small>${esc(note)}</small>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function compactAssetCard(asset) {
+  return `
+    <article class="watch-card interactive-card compact-asset-card" role="button" tabindex="0" data-action="open-asset-detail" data-id="${esc(asset.ticker)}" aria-label="查看 ${esc(asset.name)} 详情">
+      <header>
+        <h3>${esc(asset.name)} · ${esc(asset.ticker)}</h3>
+        <span class="status ${statusClass(asset.state)}">${esc(asset.state)}</span>
+      </header>
+      ${scoreBars({ ...asset, sentiment: assetSentiment(asset) })}
+      <p>${esc(asset.market)} · ${esc(asset.sector)} · ${esc(asset.evidence)}</p>
+    </article>
+  `;
+}
+
+function detailSectorFallback(asset) {
+  return {
+    id: `fallback_${slug(asset.sector)}`,
+    name: asset.sector || "待分类行业",
+    horizon: "medium",
+    level: "medium",
+    impact: asset.impact || 50,
+    trend: asset.trend || 50,
+    sentiment: assetSentiment(asset),
+    risk: asset.risk || 45,
+    driver: "该行业由标的配置推断，等待真实数据源和 LLM enrichment 完善",
+    risks: "行业映射尚未验证，需补充公告、新闻、财报和产业链证据",
+    indicators: ["公告事件", "成交量", "价格趋势", "风险评分"],
+  };
+}
+
+function assetAnalysis(asset, sector, profile) {
+  const pressure =
+    asset.risk >= 65
+      ? "风险评分处于较高区间，应优先关注负面事件、监管变化、业绩兑现和流动性扰动。"
+      : "风险评分未处于高位，但仍需跟踪估值、事件兑现和行业景气变化。";
+  const trend =
+    asset.trend >= 65
+      ? "趋势评分偏强，说明当前事件和价格线索对既有方向有一定强化。"
+      : "趋势评分仍在中性区间，更适合作为观察对象而非形成确定性结论。";
+  return `${asset.name} 当前映射到 ${sector.name}，核心行业驱动为：${profile.driver} ${trend} ${pressure} 当前信息仍来自本地配置和 demo 信号，后续应接入真实行情、公告、财报和新闻事件进行验证。`;
+}
+
+function tradingReferences(asset, sector, profile) {
+  const references = [];
+  if (asset.risk >= 65) {
+    references.push("风险优先：在风险评分回落、负面事件澄清或基本面证据改善前，仅适合保留在风险监控清单。");
+  }
+  if (asset.trend >= 68 && asset.risk < 60) {
+    references.push("右侧观察：若价格趋势、成交量和行业指标继续同步改善，可作为增持观察变量，不构成增持指令。");
+  }
+  if (asset.impact >= 70 && asset.trend < 60) {
+    references.push("左侧观察：事件影响较高但趋势尚未确认，适合等待财报、订单或价格指标进一步验证。");
+  }
+  if (asset.state.includes("减持")) {
+    references.push("仓位管理：当前状态偏向风险收缩，应重点观察风险评分是否继续上升和行业景气是否走弱。");
+  }
+  references.push(`后续触发变量：${profile.indicators.slice(0, 3).join(" / ")}。`);
+  references.push("以上仅为研究线索和仓位观察框架，不构成投资建议或买卖指令。");
+  return references;
+}
+
+function hashString(value) {
+  return String(value || "").split("").reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 7);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function mockKlineData(asset, count = 48) {
+  const seed = hashString(asset.ticker || asset.name);
+  let close = 18 + (seed % 90) + asset.trend / 3;
+  const drift = (asset.trend - asset.risk) / 700;
+  return Array.from({ length: count }, (_, index) => {
+    const wave = Math.sin((index + (seed % 11)) / 4) * 0.018;
+    const shock = (((seed >> (index % 13)) % 9) - 4) / 500;
+    const open = close;
+    close = Math.max(1, open * (1 + drift + wave + shock));
+    const high = Math.max(open, close) * (1 + 0.012 + ((seed + index) % 5) / 700);
+    const low = Math.min(open, close) * (1 - 0.012 - ((seed + index * 3) % 5) / 700);
+    return {
+      label: `D-${count - index}`,
+      open,
+      close,
+      high,
+      low,
+      volume: 0.8 + ((seed + index * 17) % 100) / 100,
+    };
+  });
+}
+
+function drawKlineChart(canvas) {
+  const asset = findAssetByTicker(canvas.dataset.ticker);
+  if (!asset) return;
+  const ctx = canvas.getContext("2d");
+  const ratio = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width < 10 || rect.height < 10) return;
+  canvas.width = Math.round(rect.width * ratio);
+  canvas.height = Math.round(rect.height * ratio);
+  ctx.scale(ratio, ratio);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+
+  const styles = getComputedStyle(document.documentElement);
+  const line = styles.getPropertyValue("--line");
+  const text = styles.getPropertyValue("--muted");
+  const green = styles.getPropertyValue("--green");
+  const red = styles.getPropertyValue("--red");
+  const blue = styles.getPropertyValue("--blue");
+  const bars = mockKlineData(asset);
+  const top = 18;
+  const bottom = rect.height - 42;
+  const left = 42;
+  const right = rect.width - 12;
+  const chartWidth = right - left;
+  const chartHeight = bottom - top;
+  const max = Math.max(...bars.map((bar) => bar.high));
+  const min = Math.min(...bars.map((bar) => bar.low));
+  const range = max - min || 1;
+  const y = (value) => top + ((max - value) / range) * chartHeight;
+
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 1;
+  [0, 0.25, 0.5, 0.75, 1].forEach((step) => {
+    const yy = top + chartHeight * step;
+    ctx.beginPath();
+    ctx.moveTo(left, yy);
+    ctx.lineTo(right, yy);
+    ctx.stroke();
+  });
+
+  ctx.fillStyle = text;
+  ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.textAlign = "right";
+  [max, (max + min) / 2, min].forEach((value) => {
+    ctx.fillText(value.toFixed(1), left - 8, y(value) + 4);
+  });
+
+  const slot = chartWidth / bars.length;
+  const candleWidth = clamp(slot * 0.58, 3, 9);
+  bars.forEach((bar, index) => {
+    const x = left + index * slot + slot / 2;
+    const up = bar.close >= bar.open;
+    ctx.strokeStyle = up ? green : red;
+    ctx.fillStyle = up ? green : red;
+    ctx.beginPath();
+    ctx.moveTo(x, y(bar.high));
+    ctx.lineTo(x, y(bar.low));
+    ctx.stroke();
+    const bodyTop = y(Math.max(bar.open, bar.close));
+    const bodyHeight = Math.max(2, Math.abs(y(bar.open) - y(bar.close)));
+    ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+    const volumeHeight = Math.min(26, bar.volume * 12);
+    ctx.globalAlpha = 0.18;
+    ctx.fillRect(x - candleWidth / 2, rect.height - 12 - volumeHeight, candleWidth, volumeHeight);
+    ctx.globalAlpha = 1;
+  });
+
+  ctx.strokeStyle = blue;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  bars.forEach((bar, index) => {
+    const x = left + index * slot + slot / 2;
+    const yy = y(bar.close);
+    if (index === 0) ctx.moveTo(x, yy);
+    else ctx.lineTo(x, yy);
+  });
+  ctx.stroke();
+}
+
+function drawDetailCharts() {
+  document.querySelectorAll(".kline-chart").forEach((canvas) => drawKlineChart(canvas));
+}
+
+function renderSectorDetail(sector) {
+  const profile = sectorProfile(sector);
+  const assets = assetsForSectorDetail(sector);
+  return `
+    <section class="panel detail-hero">
+      <div class="detail-topline">
+        <button class="text-button" data-action="back-detail">返回</button>
+        <span>Sector Detail · ${horizonLabel(profile.horizon)}</span>
+      </div>
+      <div class="detail-title-row">
+        <div>
+          <h2>${esc(sector.name)}</h2>
+          <p>${esc(profile.driver)}</p>
+        </div>
+        <span class="pill ${esc(sector.level)}">${horizonLabel(profile.horizon)}</span>
+      </div>
+      ${metricTiles([
+        ["相关标的", assets.length, "产业链映射"],
+        ["Impact", sector.impact, "行业影响"],
+        ["Trend", sector.trend, "趋势评分"],
+        ["Risk", sector.risk, "风险评分"],
+      ])}
+    </section>
+
+    <section class="detail-grid">
+      <div class="panel detail-section">
+        <div class="panel-head"><h2>上下游结构</h2><span>Knowledge Graph</span></div>
+        <div class="detail-block"><strong>上游</strong><div class="detail-chip-row">${chipList(profile.upstream)}</div></div>
+        <div class="detail-block"><strong>下游</strong><div class="detail-chip-row">${chipList(profile.downstream)}</div></div>
+      </div>
+      <div class="panel detail-section">
+        <div class="panel-head"><h2>观察变量</h2><span>Research Variables</span></div>
+        <div class="detail-chip-row">${chipList(profile.indicators)}</div>
+        <p>${esc(profile.risks)}</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>行业相关标的</h2>
+        <span>${assets.length} assets</span>
+      </div>
+      <div class="detail-asset-grid">
+        ${assets.map(compactAssetCard).join("") || emptyState("暂无相关标的，可在配置页添加", "assets")}
+      </div>
+    </section>
+  `;
+}
+
+function renderAssetDetail(asset) {
+  const sector = findSectorByName(asset.sector) || detailSectorFallback(asset);
+  const profile = sectorProfile(sector);
+  const events = asset.events || [];
+  const sectorAction = findSectorByName(asset.sector)
+    ? `<button class="text-button" data-action="open-sector-detail" data-id="${esc(sector.id)}">查看行业</button>`
+    : "";
+  return `
+    <section class="panel detail-hero">
+      <div class="detail-topline">
+        <button class="text-button" data-action="back-detail">返回</button>
+        <span>Asset Detail · ${esc(asset.market)}</span>
+      </div>
+      <div class="detail-title-row">
+        <div>
+          <h2>${esc(asset.name)} · ${esc(asset.ticker)}</h2>
+          <p>${esc(asset.sector)} · ${esc(asset.evidence)}</p>
+        </div>
+        <div class="detail-actions">
+          ${sectorAction}
+          <span class="status ${statusClass(asset.state)}">${esc(asset.state)}</span>
+        </div>
+      </div>
+      ${metricTiles([
+        ["Impact", asset.impact, "事件影响"],
+        ["Trend", asset.trend, "趋势强化"],
+        ["Risk", asset.risk, "风险压力"],
+        ["Sentiment", assetSentiment(asset), "情绪估计"],
+      ])}
+    </section>
+
+    <section class="detail-layout">
+      <div class="panel chart-panel">
+        <div class="panel-head">
+          <h2>K线图</h2>
+          <span>Local demo OHLCV</span>
+        </div>
+        <canvas class="kline-chart" data-ticker="${esc(asset.ticker)}" width="900" height="360" aria-label="${esc(asset.name)} K线图"></canvas>
+        <p class="graph-source">当前为本地模拟 K 线占位；真实版本应由 MarketDataProvider 写入 OHLCV 后绘制。</p>
+      </div>
+
+      <aside class="panel detail-section">
+        <div class="panel-head"><h2>观察指标</h2><span>${esc(sector.name)}</span></div>
+        <div class="detail-chip-row">${chipList(profile.indicators)}</div>
+        <div class="detail-block"><strong>风险</strong><p>${esc(profile.risks)}</p></div>
+      </aside>
+    </section>
+
+    <section class="detail-grid">
+      <div class="panel detail-section">
+        <div class="panel-head"><h2>详细分析</h2><span>AI-assisted</span></div>
+        <p>${esc(assetAnalysis(asset, sector, profile))}</p>
+        <div class="timeline">
+          ${events
+            .map(
+              ([time, text]) => `
+                <div class="timeline-row">
+                  <span>${esc(time)}</span>
+                  <strong>${esc(text)}</strong>
+                </div>
+              `,
+            )
+            .join("")}
+        </div>
+      </div>
+      <div class="panel detail-section">
+        <div class="panel-head"><h2>交易思路参考</h2><span>非指令</span></div>
+        <ul class="reference-list">
+          ${tradingReferences(asset, sector, profile).map((item) => `<li>${esc(item)}</li>`).join("")}
+        </ul>
+      </div>
+    </section>
+  `;
+}
+
+function renderDetailView() {
+  const target = document.querySelector("#detailContent");
+  if (!target) return;
+  if (uiState.detail.type === "sector") {
+    const sector = findSectorById(uiState.detail.id);
+    target.innerHTML = sector ? renderSectorDetail(sector) : emptyState("未找到行业详情", "sectors");
+  } else if (uiState.detail.type === "asset") {
+    const asset = findAssetByTicker(uiState.detail.id);
+    target.innerHTML = asset ? renderAssetDetail(asset) : emptyState("未找到标的详情", "assets");
+  } else {
+    target.innerHTML = emptyState("请选择行业或标的", "sectors");
+  }
+  requestAnimationFrame(drawDetailCharts);
+}
+
 function renderConfigPane() {
   const pane = document.querySelector("#configPane");
   if (!pane) return;
@@ -1425,11 +1796,17 @@ function renderAll() {
   renderWatchlist();
   renderSearchResults();
   renderConfigPane();
+  renderDetailView();
   renderGraphOnly();
 }
 
 function switchView(viewId) {
   uiState.activeView = viewId;
+  if (viewId !== "detail") {
+    uiState.detail.type = null;
+    uiState.detail.id = null;
+    uiState.detail.fromView = viewId;
+  }
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === viewId);
   });
@@ -1437,6 +1814,7 @@ function switchView(viewId) {
     view.classList.toggle("active", view.id === viewId);
   });
   if (viewId === "graph") renderGraphOnly();
+  if (viewId === "detail") renderDetailView();
 }
 
 function openConfig(tab = "sectors") {
@@ -1446,6 +1824,36 @@ function openConfig(tab = "sectors") {
   });
   switchView("settings");
   renderConfigPane();
+}
+
+function openSectorDetail(id) {
+  const sector = findSectorById(id);
+  if (!sector) return;
+  uiState.detail = {
+    type: "sector",
+    id,
+    fromView: uiState.activeView === "detail" ? uiState.detail.fromView : uiState.activeView,
+  };
+  uiState.graphFocus = id;
+  switchView("detail");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function openAssetDetail(ticker) {
+  const asset = findAssetByTicker(ticker);
+  if (!asset) return;
+  uiState.detail = {
+    type: "asset",
+    id: ticker,
+    fromView: uiState.activeView === "detail" ? uiState.detail.fromView : uiState.activeView,
+  };
+  switchView("detail");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function backFromDetail() {
+  const fromView = uiState.detail.fromView || "dashboard";
+  switchView(fromView);
 }
 
 function showToast(message) {
@@ -1702,6 +2110,9 @@ function bindEvents() {
     if (!button) return;
     const action = button.dataset.action;
     const id = button.dataset.id;
+    if (action === "open-sector-detail") openSectorDetail(id);
+    if (action === "open-asset-detail") openAssetDetail(id);
+    if (action === "back-detail") backFromDetail();
     if (action === "add-sector") addSector(id);
     if (action === "remove-sector") removeSector(id);
     if (action === "add-asset") addAsset(id);
@@ -1732,6 +2143,14 @@ function bindEvents() {
     if (input) updateInlineInput(input);
   });
 
+  document.addEventListener("keydown", (event) => {
+    if (!["Enter", " "].includes(event.key)) return;
+    const card = event.target.closest(".interactive-card[data-action]");
+    if (!card) return;
+    event.preventDefault();
+    card.click();
+  });
+
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".search-shell")) {
       setSearchResultsVisible(document.querySelector("#searchResults"), false);
@@ -1742,7 +2161,10 @@ function bindEvents() {
     button.addEventListener("click", () => switchView(button.dataset.view));
   });
 
-  window.addEventListener("resize", drawGraph);
+  window.addEventListener("resize", () => {
+    drawGraph();
+    drawDetailCharts();
+  });
 }
 
 async function boot() {
