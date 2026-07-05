@@ -10,32 +10,103 @@ data_sources:
     default_adjust: "qfq"
 
   announcement:
-    provider: "akshare_disclosure"
+    provider: "combined_disclosure"
     enabled: true
     markets:
       - "A-share"
       - "HK"
+    a_share_provider: "cninfo"
+    hk_provider: "hkexnews"
+    cninfo:
+      endpoint: "https://www.cninfo.com.cn/new/hisAnnouncement/query"
+      static_base_url: "https://static.cninfo.com.cn/"
+    hkexnews:
+      endpoint: "https://www1.hkexnews.hk/search/titleSearchServlet.do"
+      stock_prefix_endpoint: "https://www1.hkexnews.hk/search/prefix.do"
 
   news:
-    provider: "rss"
+    provider: "rss_with_sina_fallback"
     enabled: true
+    rsshub_base_url: "https://rsshub.app"
     sources:
-      - name: "caixin"
-        url: ""
-        weight: 0.9
-      - name: "cls"
-        url: ""
-        weight: 0.8
-      - name: "reuters"
-        url: ""
-        weight: 0.95
+      - name: "cls_telegraph"
+        url: "https://rsshub.app/cls/telegraph"
+        weight: 0.90
+        source_type: "rsshub"
+      - name: "cls_watch"
+        url: "https://rsshub.app/cls/telegraph/watch"
+        weight: 0.88
+        source_type: "rsshub"
+      - name: "cls_company"
+        url: "https://rsshub.app/cls/telegraph/announcement"
+        weight: 0.86
+        source_type: "rsshub"
+      - name: "cls_hk"
+        url: "https://rsshub.app/cls/telegraph/hk"
+        weight: 0.84
+        source_type: "rsshub"
+      - name: "yicai_latest"
+        url: "https://rsshub.app/yicai/latest"
+        weight: 0.82
+        source_type: "rsshub"
+      - name: "yicai_brief"
+        url: "https://rsshub.app/yicai/brief"
+        weight: 0.80
+        source_type: "rsshub"
+      - name: "stcn_yw"
+        url: "https://rsshub.app/stcn/article/list/yw"
+        weight: 0.82
+        source_type: "rsshub"
+      - name: "stcn_stock"
+        url: "https://rsshub.app/stcn/article/list/gs"
+        weight: 0.82
+        source_type: "rsshub"
+      - name: "stcn_company"
+        url: "https://rsshub.app/stcn/article/list/company"
+        weight: 0.82
+        source_type: "rsshub"
+      - name: "stcn_flash"
+        url: "https://rsshub.app/stcn/article/list/kx"
+        weight: 0.78
+        source_type: "rsshub"
+      - name: "sina_stock"
+        url: "https://rsshub.app/sina/finance/rollnews/2671"
+        weight: 0.72
+        source_type: "rsshub"
+      - name: "sina_hk"
+        url: "https://rsshub.app/sina/finance/rollnews/2674"
+        weight: 0.72
+        source_type: "rsshub"
+      - name: "csrc_news"
+        url: "https://rsshub.app/gov/csrc/news"
+        weight: 0.86
+        source_type: "rsshub"
+      - name: "caixin_latest"
+        url: "https://rsshub.app/caixin/latest"
+        weight: 0.78
+        source_type: "rsshub"
+    fallback_sources:
+      - provider: "sina_finance_rollnews"
+        enabled: true
+        lids:
+          - "2671" # 股市
+          - "2674" # 港股
+          - "2675" # 研究报告
+          - "2676" # 全球市场
 
   financial_reports:
-    provider: "akshare_disclosure"
+    provider: "combined_disclosure"
     enabled: true
     markets:
       - "A-share"
       - "HK"
+    a_share_provider: "cninfo"
+    hk_provider: "hkexnews"
+    cninfo_report_categories:
+      annual: "category_ndbg_szsh"
+      semiannual: "category_bndbg_szsh"
+      q1: "category_yjdbg_szsh"
+      q3: "category_sjdbg_szsh"
 
   policy:
     provider: "policy_rss"

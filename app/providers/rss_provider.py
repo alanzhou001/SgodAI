@@ -24,6 +24,7 @@ class RSSNewsProvider(NewsProvider):
     def __init__(self, sources: list[RSSSource], *, timeout_seconds: int = 20) -> None:
         self.sources = sources
         self.timeout_seconds = timeout_seconds
+        self.last_errors: list[dict[str, str]] = []
 
     def healthcheck(self) -> bool:
         return bool(self.sources)
@@ -35,14 +36,38 @@ class RSSNewsProvider(NewsProvider):
         until: datetime | None = None,
     ) -> list[Event]:
         events: list[Event] = []
+        self.last_errors = []
         for source in self.sources:
             request = urllib.request.Request(
                 source.url,
-                headers={"User-Agent": "SgodAI-Market-Radar/0.1"},
+                headers={
+                    "Accept": (
+                        "application/rss+xml, application/atom+xml, "
+                        "application/xml, text/xml, */*"
+                    ),
+                    "User-Agent": (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                        "Version/17.0 Safari/605.1.15 SgodAI-Market-Radar/0.1"
+                    ),
+                },
             )
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-                payload = response.read()
-            events.extend(self.parse_feed(source, payload, query=query, since=since, until=until))
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                    payload = response.read()
+                events.extend(
+                    self.parse_feed(
+                        source,
+                        payload,
+                        query=query,
+                        since=since,
+                        until=until,
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001 - RSS should degrade per source.
+                self.last_errors.append(
+                    {"source": source.name, "url": source.url, "error": str(exc)}
+                )
         return events
 
     def parse_feed(

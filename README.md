@@ -54,7 +54,8 @@ python3 -m unittest discover -s tests
 
 ## Real Data + DeepSeek Setup
 
-The first real-data profile is DeepSeek + AkShare + RSS, focused on A-share and HK equities.
+The first real-data profile is DeepSeek + AkShare + RSSHub + CNINFO + HKEXnews,
+focused on A-share and HK equities.
 
 1. Create a local environment file:
 
@@ -95,9 +96,19 @@ uvicorn app.api.server:app --host 127.0.0.1 --port 8000
 ```bash
 curl http://127.0.0.1:8000/api/health
 curl "http://127.0.0.1:8000/api/assets/688525.SH/ohlcv"
+curl "http://127.0.0.1:8000/api/news/rss?query=半导体"
+curl "http://127.0.0.1:8000/api/disclosures/announcements?ticker=688525.SH"
+curl "http://127.0.0.1:8000/api/disclosures/reports?ticker=700.HK"
 ```
 
-RSS news sources in `configs/sources.yaml` intentionally require explicit URLs. Use licensed or public RSS endpoints you are allowed to access.
+Default public-source coverage:
+
+- News: RSSHub routes for 财联社、第一财经、证券时报、新浪财经、证监会、财新最新.
+- A-share disclosures and reports: CNINFO title search and PDF links.
+- HK disclosures and reports: HKEXnews title search and PDF links.
+
+Public sources are suitable for MVP research workflows, not hard real-time or SLA-bound production.
+If a paid/authorized data API becomes necessary, add it as a new provider behind the same local API.
 
 ## Publish To GitHub
 
