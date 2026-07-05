@@ -41,6 +41,23 @@ class AkShareMarketDataProvider(MarketDataProvider):
             rows.extend(self.fetch_ohlcv(asset.ticker, since=since, until=until))
         return rows
 
+    def fetch_latest_quote(self, ticker: str) -> dict[str, Any]:
+        ak = self._require_akshare()
+        market, symbol = normalize_market_ticker(ticker)
+        if market == "A-share":
+            frame = ak.stock_zh_a_spot_em()
+            code = symbol
+        elif market == "HK":
+            frame = ak.stock_hk_spot_em()
+            code = symbol
+        else:
+            raise ValueError(f"Unsupported ticker market for AkShare: {ticker}")
+
+        for row in frame.to_dict("records"):
+            if str(row.get("代码") or row.get("code") or "").strip().zfill(len(code)) == code:
+                return self._row_to_quote(ticker, row)
+        raise ValueError(f"AkShare quote returned no match for {ticker}")
+
     def fetch_ohlcv(
         self,
         ticker: str,
@@ -89,6 +106,24 @@ class AkShareMarketDataProvider(MarketDataProvider):
         }
 
     @staticmethod
+    def _row_to_quote(ticker: str, row: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "ticker": ticker,
+            "name": str(row.get("名称") or row.get("name") or ""),
+            "price": _float(row.get("最新价") or row.get("price")),
+            "change_pct": _float(row.get("涨跌幅") or row.get("change_pct")),
+            "change": _float(row.get("涨跌额") or row.get("change")),
+            "open": _float(row.get("今开") or row.get("open")),
+            "high": _float(row.get("最高") or row.get("high")),
+            "low": _float(row.get("最低") or row.get("low")),
+            "prev_close": _float(row.get("昨收") or row.get("prev_close")),
+            "volume": _float(row.get("成交量") or row.get("volume")),
+            "amount": _float(row.get("成交额") or row.get("amount")),
+            "source": "akshare",
+            "raw": row,
+        }
+
+    @staticmethod
     def _akshare() -> Any | None:
         try:
             import akshare as ak  # type: ignore
@@ -104,6 +139,15 @@ class AkShareMarketDataProvider(MarketDataProvider):
                 "AkShare is not installed. Run `pip install akshare pandas` in your venv."
             )
         return ak
+
+
+def _float(value: Any) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class AkShareDisclosureProvider(AnnouncementProvider, FinancialReportProvider):

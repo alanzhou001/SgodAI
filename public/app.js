@@ -1,4 +1,5 @@
 const STORAGE_KEY = "sgodai.market-radar.config.v2";
+const API_BASE_URL = window.location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
 
 const sectorCatalog = [
   {
@@ -624,9 +625,18 @@ const uiState = {
     id: null,
     fromView: "dashboard",
   },
+  remoteAssetSearch: {
+    query: "",
+    loading: false,
+    items: [],
+    errors: [],
+    requestId: 0,
+  },
 };
 
 const commandHiddenViews = new Set(["graph", "settings"]);
+const marketDataCache = new Map();
+let searchTimer = null;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -643,6 +653,22 @@ function esc(value) {
 
 function normalize(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function apiUrl(path) {
+  return `${API_BASE_URL}${path}`;
+}
+
+async function apiGet(path) {
+  const response = await fetch(apiUrl(path), {
+    headers: { Accept: "application/json" },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof payload.detail === "string" ? payload.detail : JSON.stringify(payload.detail || {});
+    throw new Error(detail || `API ${response.status}`);
+  }
+  return payload;
 }
 
 function slug(value) {
@@ -706,6 +732,40 @@ function findSectorByName(name) {
 
 function findAssetByTicker(ticker) {
   return allAssets().find((asset) => asset.ticker === ticker);
+}
+
+function findRemoteAssetByTicker(ticker) {
+  return uiState.remoteAssetSearch.items.find((asset) => asset.ticker === ticker);
+}
+
+function inferRemoteAssetSector(item) {
+  const matched = allAssets().find(
+    (asset) =>
+      asset.ticker === item.ticker ||
+      normalize(asset.name) === normalize(item.name) ||
+      normalize(item.name).includes(normalize(asset.name)),
+  );
+  return matched?.sector || "待分类";
+}
+
+function normalizeRemoteAsset(item) {
+  const sector = inferRemoteAssetSector(item);
+  return {
+    ticker: String(item.ticker || "").toUpperCase(),
+    name: String(item.name || item.ticker || "").trim(),
+    market: String(item.market || "A-share"),
+    sector,
+    state: "观察",
+    impact: 50,
+    trend: 50,
+    risk: 45,
+    evidence: `asset_search:${item.source || "public"}`,
+    events: [
+      ["搜索", "真实标的搜索返回，等待行情、公告和财报验证"],
+      ["来源", `${item.market || "Market"} · ${item.exchange || ""}`.trim()],
+    ],
+    source: item.source || "public_asset_search",
+  };
 }
 
 function activeLlmProvider() {
@@ -1108,6 +1168,30 @@ function emptyState(text, tab) {
   `;
 }
 
+function remoteSearchReady(query) {
+  return (
+    uiState.remoteAssetSearch.query === normalize(query) &&
+    (uiState.remoteAssetSearch.loading || uiState.remoteAssetSearch.items.length || uiState.remoteAssetSearch.errors.length)
+  );
+}
+
+function remoteAssetSearchResults(query) {
+  if (!remoteSearchReady(query)) return [];
+  const q = normalize(query);
+  return uiState.remoteAssetSearch.items
+    .filter((asset) => assetMatchesQuery({ ...asset, sector: inferRemoteAssetSector(asset), state: "观察" }, q))
+    .map((asset) => {
+      const sector = inferRemoteAssetSector(asset);
+      return {
+        kind: "asset",
+        id: asset.ticker,
+        title: `${asset.name} · ${asset.ticker}`,
+        meta: `真实标的 · ${asset.market || "Market"} · ${sector} · ${asset.source || "public"}`,
+        added: appConfig.assetTickers.includes(asset.ticker),
+      };
+    });
+}
+
 function searchCatalog(query) {
   const q = normalize(query);
   if (!q) return [];
@@ -1132,7 +1216,10 @@ function searchCatalog(query) {
       meta: `${asset.market || "Market"} · ${asset.sector}`,
       added: appConfig.assetTickers.includes(asset.ticker),
     }));
-  return [...sectors, ...assets].slice(0, 10);
+  return uniqBy([...sectors, ...assets, ...remoteAssetSearchResults(query)], (item) => `${item.kind}:${item.id}`).slice(
+    0,
+    12,
+  );
 }
 
 function setSearchResultsVisible(target, visible) {
@@ -1150,14 +1237,20 @@ function renderSearchResults() {
     setSearchResultsVisible(target, false);
     return;
   }
+  const footer = uiState.remoteAssetSearch.loading
+    ? `<div class="search-empty">正在查询真实 A股 / 港股标的...</div>`
+    : uiState.remoteAssetSearch.errors.length
+      ? `<div class="search-empty">部分真实数据源不可用，已显示可用结果</div>`
+      : "";
   if (!items.length) {
-    target.innerHTML = `<div class="search-empty">未匹配，可在配置页创建</div>`;
+    target.innerHTML = `${footer}<div class="search-empty">未匹配，可在配置页创建</div>`;
     setSearchResultsVisible(target, true);
     return;
   }
-  target.innerHTML = items
-    .map(
-      (item) => `
+  target.innerHTML =
+    items
+      .map(
+        (item) => `
         <button class="search-result" data-action="add-${item.kind}" data-id="${esc(item.id)}">
           <span>
             <strong>${esc(item.title)}</strong>
@@ -1166,9 +1259,63 @@ function renderSearchResults() {
           <em>${item.added ? "已添加" : "添加"}</em>
         </button>
       `,
-    )
-    .join("");
+      )
+      .join("") + footer;
   setSearchResultsVisible(target, true);
+}
+
+function scheduleRemoteAssetSearch(query) {
+  const q = normalize(query);
+  clearTimeout(searchTimer);
+  if (q.length < 2) {
+    uiState.remoteAssetSearch = {
+      ...uiState.remoteAssetSearch,
+      query: q,
+      loading: false,
+      items: [],
+      errors: [],
+    };
+    renderSearchResults();
+    return;
+  }
+  const requestId = Date.now();
+  uiState.remoteAssetSearch = {
+    ...uiState.remoteAssetSearch,
+    query: q,
+    loading: true,
+    requestId,
+  };
+  renderSearchResults();
+  searchTimer = setTimeout(() => fetchRemoteAssetSearch(query, requestId), 280);
+}
+
+async function fetchRemoteAssetSearch(query, requestId) {
+  try {
+    const params = new URLSearchParams({
+      q: query.trim(),
+      limit: "18",
+      markets: "A-share,HK",
+    });
+    const payload = await apiGet(`/api/assets/search?${params.toString()}`);
+    if (uiState.remoteAssetSearch.requestId !== requestId) return;
+    uiState.remoteAssetSearch = {
+      ...uiState.remoteAssetSearch,
+      query: normalize(query),
+      loading: false,
+      items: payload.results || [],
+      errors: payload.errors || [],
+    };
+  } catch (error) {
+    if (uiState.remoteAssetSearch.requestId !== requestId) return;
+    uiState.remoteAssetSearch = {
+      ...uiState.remoteAssetSearch,
+      query: normalize(query),
+      loading: false,
+      items: [],
+      errors: [{ source: "api", error: error.message }],
+    };
+  }
+  renderSearchResults();
 }
 
 function addSector(id) {
@@ -1186,7 +1333,15 @@ function addSector(id) {
 }
 
 function addAsset(ticker) {
-  const asset = findAssetByTicker(ticker);
+  let asset = findAssetByTicker(ticker);
+  if (!asset) {
+    const remoteAsset = findRemoteAssetByTicker(ticker);
+    if (remoteAsset) {
+      asset = normalizeRemoteAsset(remoteAsset);
+      appConfig.customAssets = appConfig.customAssets.filter((item) => item.ticker !== asset.ticker);
+      appConfig.customAssets.push(asset);
+    }
+  }
   if (!asset) return;
   const linkedSector = [...sectorCatalog, ...appConfig.customSectors].find(
     (sector) => sector.name === asset.sector,
@@ -1545,9 +1700,66 @@ function mockKlineData(asset, count = 48) {
   });
 }
 
+function isoDateOffset(monthsBack = 0) {
+  const date = new Date();
+  date.setMonth(date.getMonth() - monthsBack);
+  return date.toISOString().slice(0, 10);
+}
+
+function mapOhlcvRows(rows) {
+  const parsed = (rows || [])
+    .map((row) => ({
+      label: String(row.trade_date || row.date || ""),
+      open: Number(row.open),
+      close: Number(row.close),
+      high: Number(row.high),
+      low: Number(row.low),
+      volumeRaw: Number(row.volume || 0),
+    }))
+    .filter((row) => Number.isFinite(row.open) && Number.isFinite(row.close) && Number.isFinite(row.high) && Number.isFinite(row.low))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  const maxVolume = Math.max(...parsed.map((row) => row.volumeRaw), 1);
+  return parsed.slice(-72).map((row) => ({
+    label: row.label,
+    open: row.open,
+    close: row.close,
+    high: row.high,
+    low: row.low,
+    volume: Math.max(0.2, (row.volumeRaw / maxVolume) * 2.2),
+  }));
+}
+
+function ensureRealKline(asset) {
+  if (!asset?.ticker || marketDataCache.has(asset.ticker)) return;
+  marketDataCache.set(asset.ticker, { status: "loading", bars: [], source: "akshare" });
+  const params = new URLSearchParams({
+    start: isoDateOffset(12),
+    end: isoDateOffset(0),
+  });
+  apiGet(`/api/assets/${encodeURIComponent(asset.ticker)}/ohlcv?${params.toString()}`)
+    .then((payload) => {
+      const bars = mapOhlcvRows(payload.rows);
+      marketDataCache.set(asset.ticker, {
+        status: bars.length ? "ok" : "empty",
+        bars,
+        source: payload.source || "akshare",
+      });
+    })
+    .catch((error) => {
+      marketDataCache.set(asset.ticker, {
+        status: "error",
+        bars: [],
+        source: "demo_fallback",
+        error: error.message,
+      });
+    })
+    .finally(() => requestAnimationFrame(drawDetailCharts));
+}
+
 function drawKlineChart(canvas) {
   const asset = findAssetByTicker(canvas.dataset.ticker);
   if (!asset) return;
+  ensureRealKline(asset);
   const ctx = canvas.getContext("2d");
   const ratio = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
@@ -1563,7 +1775,9 @@ function drawKlineChart(canvas) {
   const green = styles.getPropertyValue("--green");
   const red = styles.getPropertyValue("--red");
   const blue = styles.getPropertyValue("--blue");
-  const bars = mockKlineData(asset);
+  const cached = marketDataCache.get(asset.ticker);
+  const realBars = cached?.bars?.length ? cached.bars : null;
+  const bars = realBars || mockKlineData(asset);
   const top = 18;
   const bottom = rect.height - 42;
   const left = 42;
@@ -1622,6 +1836,17 @@ function drawKlineChart(canvas) {
     else ctx.lineTo(x, yy);
   });
   ctx.stroke();
+
+  ctx.fillStyle = text;
+  ctx.textAlign = "left";
+  ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
+  const sourceLabel =
+    cached?.status === "ok"
+      ? `Real OHLCV · ${cached.source}`
+      : cached?.status === "loading"
+        ? "Loading real OHLCV..."
+        : "Demo fallback · MarketDataProvider unavailable";
+  ctx.fillText(sourceLabel, left, rect.height - 14);
 }
 
 function drawDetailCharts() {
@@ -1712,10 +1937,10 @@ function renderAssetDetail(asset) {
       <div class="panel chart-panel">
         <div class="panel-head">
           <h2>K线图</h2>
-          <span>Local demo OHLCV</span>
+          <span>Real OHLCV first</span>
         </div>
         <canvas class="kline-chart" data-ticker="${esc(asset.ticker)}" width="900" height="360" aria-label="${esc(asset.name)} K线图"></canvas>
-        <p class="graph-source">当前为本地模拟 K 线占位；真实版本应由 MarketDataProvider 写入 OHLCV 后绘制。</p>
+        <p class="graph-source">优先调用 MarketDataProvider / AkShare 真实行情；不可用时使用本地演示数据兜底。</p>
       </div>
 
       <aside class="panel detail-section">
@@ -2319,6 +2544,7 @@ function bindEvents() {
   document.querySelector("#commandSearch").addEventListener("input", (event) => {
     uiState.query = event.target.value;
     renderAll();
+    scheduleRemoteAssetSearch(uiState.query);
   });
 
   document.querySelector("#horizonSegment").addEventListener("click", (event) => {

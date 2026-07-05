@@ -26,6 +26,18 @@ class MarketDataProvider(DataProvider):
         raise NotImplementedError
 
 
+class AssetSearchProvider(DataProvider):
+    @abstractmethod
+    def search_assets(
+        self,
+        query: str,
+        *,
+        limit: int = 20,
+        markets: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+
 class AnnouncementProvider(DataProvider):
     @abstractmethod
     def fetch_announcements(
@@ -134,4 +146,3 @@ class CalendarProvider(DataProvider):
         until: datetime | None = None,
     ) -> list[dict[str, Any]]:
         raise NotImplementedError
-

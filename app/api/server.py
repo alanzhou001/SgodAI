@@ -14,17 +14,21 @@ except ImportError:  # pragma: no cover - optional dependency in realdata profil
 
 try:
     from fastapi import FastAPI, HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
     from fastapi.staticfiles import StaticFiles
 except ImportError:  # pragma: no cover - exercised only before optional deps are installed
     FastAPI = None  # type: ignore
     HTTPException = RuntimeError  # type: ignore
+    CORSMiddleware = None  # type: ignore
     StaticFiles = None  # type: ignore
 
 from app.llm.openai_compatible import OpenAICompatibleLLMProvider
 from app.models import Asset, Event
 from app.providers import (
+    PublicAssetSearchProvider,
     RSSNewsProvider,
     RSSSource,
+    SinaAShareMarketDataProvider,
     SinaFinanceNewsProvider,
     normalize_market_ticker,
 )
@@ -40,6 +44,13 @@ def create_app() -> Any:
         raise RuntimeError("FastAPI is not installed. Run `pip install -e .[realdata]`.")
 
     app = FastAPI(title="SgodAI Market Radar API", version="0.1.0")
+    if CORSMiddleware is not None:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     @app.get("/api/health")
     def health() -> dict[str, Any]:
@@ -51,6 +62,51 @@ def create_app() -> Any:
                 "不构成投资建议，不提供自动交易或确定性买卖指令。"
             ),
         }
+
+    @app.get("/api/assets/search")
+    def asset_search(
+        q: str,
+        limit: int = 20,
+        markets: str = "A-share,HK",
+    ) -> dict[str, Any]:
+        provider = PublicAssetSearchProvider()
+        results = provider.search_assets(
+            q,
+            limit=limit,
+            markets=[item.strip() for item in markets.split(",") if item.strip()],
+        )
+        return {
+            "query": q,
+            "results": results,
+            "source": provider.provider_id,
+            "errors": provider.last_errors,
+        }
+
+    @app.get("/api/assets/{ticker}/quote")
+    def asset_quote(ticker: str) -> dict[str, Any]:
+        provider = AkShareMarketDataProvider()
+        try:
+            quote = provider.fetch_latest_quote(ticker)
+        except Exception as exc:  # noqa: BLE001
+            fallback = SinaAShareMarketDataProvider()
+            try:
+                quote = fallback.fetch_latest_quote(ticker)
+            except Exception as fallback_exc:  # noqa: BLE001
+                raise HTTPException(
+                    status_code=502,
+                    detail={
+                        "primary": str(exc),
+                        "fallback": str(fallback_exc),
+                    },
+                ) from fallback_exc
+            return {
+                "ticker": ticker,
+                "quote": quote,
+                "source": fallback.provider_id,
+                "fallback_from": provider.provider_id,
+                "warning": str(exc),
+            }
+        return {"ticker": ticker, "quote": quote, "source": provider.provider_id}
 
     @app.get("/api/assets/{ticker}/ohlcv")
     def asset_ohlcv(
@@ -66,7 +122,28 @@ def create_app() -> Any:
                 until=datetime.fromisoformat(end) if end else None,
             )
         except Exception as exc:  # noqa: BLE001 - API should surface adapter failure clearly.
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
+            fallback = SinaAShareMarketDataProvider()
+            try:
+                rows = fallback.fetch_ohlcv(
+                    ticker,
+                    since=datetime.fromisoformat(start) if start else None,
+                    until=datetime.fromisoformat(end) if end else None,
+                )
+            except Exception as fallback_exc:  # noqa: BLE001
+                raise HTTPException(
+                    status_code=502,
+                    detail={
+                        "primary": str(exc),
+                        "fallback": str(fallback_exc),
+                    },
+                ) from fallback_exc
+            return {
+                "ticker": ticker,
+                "rows": rows,
+                "source": fallback.provider_id,
+                "fallback_from": provider.provider_id,
+                "warning": str(exc),
+            }
         return {"ticker": ticker, "rows": rows, "source": provider.provider_id}
 
     @app.get("/api/news/rss")

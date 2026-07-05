@@ -15,4 +15,6 @@ class ApiServerTest(TestCase):
         paths = [getattr(route, "path", None) for route in app.routes]
 
         self.assertIn("/api/health", paths)
+        self.assertIn("/api/assets/search", paths)
+        self.assertIn("/api/assets/{ticker}/quote", paths)
         self.assertIn("", paths)

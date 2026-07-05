@@ -4,11 +4,16 @@ from unittest import TestCase
 from app.llm import OpenAICompatibleLLMProvider
 from app.models import Asset, Event
 from app.providers import (
+    PublicAssetSearchProvider,
     CninfoDisclosureProvider,
     CombinedDisclosureProvider,
     HKEXNewsDisclosureProvider,
     RSSNewsProvider,
     RSSSource,
+    SinaAShareMarketDataProvider,
+    a_share_exchange,
+    hkex_query_terms,
+    match_score,
     SinaFinanceNewsProvider,
     normalize_market_ticker,
 )
@@ -18,6 +23,48 @@ class RealDataAdapterTest(TestCase):
     def test_ticker_normalization_for_a_h_markets(self) -> None:
         self.assertEqual(normalize_market_ticker("688525.SH"), ("A-share", "688525"))
         self.assertEqual(normalize_market_ticker("700.HK"), ("HK", "00700"))
+
+    def test_asset_search_maps_a_share_exchange_suffixes(self) -> None:
+        self.assertEqual(a_share_exchange("688525"), "SH")
+        self.assertEqual(a_share_exchange("300750"), "SZ")
+        self.assertEqual(a_share_exchange("920001"), "BJ")
+
+    def test_asset_search_builds_a_share_result_from_akshare_row(self) -> None:
+        provider = PublicAssetSearchProvider()
+        result = provider._a_share_row_to_result(  # type: ignore[attr-defined]
+            "佰维",
+            code="688525",
+            name="佰维存储",
+            raw={"code": "688525", "name": "佰维存储"},
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.ticker, "688525.SH")
+        self.assertEqual(result.market, "A-share")
+
+    def test_asset_search_builds_hk_result_without_leading_zero(self) -> None:
+        provider = PublicAssetSearchProvider()
+        result = provider._hk_row_to_result(  # type: ignore[attr-defined]
+            "腾讯",
+            code="00700",
+            name="腾讯控股",
+            raw={"code": "00700", "name": "腾讯控股"},
+            source="unit",
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.ticker, "700.HK")
+        self.assertEqual(result.market, "HK")
+
+    def test_asset_search_score_prefers_exact_code(self) -> None:
+        self.assertGreater(match_score("688525", "688525", "佰维存储"), 0.99)
+        self.assertGreater(match_score("佰维", "688525", "佰维存储"), 0.7)
+
+    def test_hkex_query_terms_expand_common_chinese_names(self) -> None:
+        terms = hkex_query_terms("腾讯")
+
+        self.assertIn("腾讯", terms)
+        self.assertIn("TENCENT", terms)
 
     def test_rss_provider_parses_grounded_news_events(self) -> None:
         provider = RSSNewsProvider([RSSSource(name="unit", url="https://example.test/rss")])
@@ -76,6 +123,23 @@ class RealDataAdapterTest(TestCase):
         self.assertEqual(events[0].event_type, "news")
         self.assertEqual(events[0].source, "sina_finance_rollnews")
         self.assertEqual(events[0].source_url, "https://finance.sina.com.cn/stock/test.shtml")
+
+    def test_sina_market_provider_parses_a_share_jsonp(self) -> None:
+        provider = SinaAShareMarketDataProvider()
+        payload = """
+        /*<script>location.href='//sina.com';</script>*/
+        var data=([
+          {"day":"2026-07-01","open":"10.0","high":"11.0","low":"9.5","close":"10.5","volume":"100"},
+          {"day":"2026-07-02","open":"10.5","high":"12.0","low":"10.2","close":"11.8","volume":"200"}
+        ]);
+        """
+
+        rows = provider.parse_payload("600519.SH", payload)
+
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["trade_date"], "2026-07-01")
+        self.assertEqual(rows[1]["close"], 11.8)
+        self.assertEqual(rows[1]["source"], "sina")
 
     def test_openai_compatible_provider_wraps_structured_output(self) -> None:
         provider = OpenAICompatibleLLMProvider(
