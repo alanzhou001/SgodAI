@@ -1067,6 +1067,45 @@ function horizonLabel(value) {
   return { long: "长期", medium: "中期", short: "短期", all: "全部" }[value] || value;
 }
 
+const scoreGuides = {
+  Impact: "越高表示事件影响越大，不代表收益越高",
+  Trend: "越高表示趋势强化越明显",
+  Risk: "越高表示风险压力越大",
+  Sentiment: "越高表示情绪越偏正面，50 附近为中性",
+  Sent: "越高表示情绪越偏正面",
+};
+
+function scoreGuide(label) {
+  return scoreGuides[label] || "";
+}
+
+function scoreBand(label, value) {
+  const score = Number(value) || 0;
+  if (label === "Risk") {
+    if (score >= 70) return "高风险";
+    if (score >= 55) return "风险抬升";
+    return "风险可控";
+  }
+  if (label === "Sentiment" || label === "Sent") {
+    if (score >= 60) return "偏正面";
+    if (score <= 40) return "偏负面";
+    return "中性";
+  }
+  if (score >= 70) return "强";
+  if (score >= 50) return "中等";
+  return "偏弱";
+}
+
+function scoreLegend() {
+  return `
+    <div class="score-legend">
+      <strong>分数口径</strong>
+      <span>Impact / Trend / Sentiment 越高代表信号更强或情绪更正面；Risk 越高代表风险压力更大。</span>
+      <span>50 附近视为中性或常态，70 以上进入重点观察区间。</span>
+    </div>
+  `;
+}
+
 function statusClass(state) {
   if (state.includes("增持")) return "add";
   if (state.includes("左侧")) return "left";
@@ -1119,10 +1158,10 @@ function filteredAssets() {
 function scoreBars(item) {
   return `
     <div class="score-row">
-      <div class="score"><label>Impact ${item.impact}</label><div class="bar" style="--value:${item.impact}%"><span></span></div></div>
-      <div class="score"><label>Trend ${item.trend}</label><div class="bar trend" style="--value:${item.trend}%"><span></span></div></div>
-      <div class="score"><label>Sent ${item.sentiment || 52}</label><div class="bar sentiment" style="--value:${item.sentiment || 52}%"><span></span></div></div>
-      <div class="score"><label>Risk ${item.risk}</label><div class="bar risk" style="--value:${item.risk}%"><span></span></div></div>
+      <div class="score" title="${esc(scoreGuide("Impact"))}"><label>Impact ${item.impact} · ${scoreBand("Impact", item.impact)}</label><div class="bar" style="--value:${item.impact}%"><span></span></div></div>
+      <div class="score" title="${esc(scoreGuide("Trend"))}"><label>Trend ${item.trend} · ${scoreBand("Trend", item.trend)}</label><div class="bar trend" style="--value:${item.trend}%"><span></span></div></div>
+      <div class="score" title="${esc(scoreGuide("Sent"))}"><label>Sent ${item.sentiment || 52} · ${scoreBand("Sent", item.sentiment || 52)}</label><div class="bar sentiment" style="--value:${item.sentiment || 52}%"><span></span></div></div>
+      <div class="score" title="${esc(scoreGuide("Risk"))}"><label>Risk ${item.risk} · ${scoreBand("Risk", item.risk)}</label><div class="bar risk" style="--value:${item.risk}%"><span></span></div></div>
     </div>
   `;
 }
@@ -1146,6 +1185,7 @@ function renderMetrics() {
           <span>${esc(label)}</span>
           <strong>${esc(value)}</strong>
           <small>${esc(note)}</small>
+          ${scoreGuide(label) ? `<em>${esc(scoreBand(label, value))} · ${esc(scoreGuide(label))}</em>` : ""}
         </article>
       `,
     )
@@ -1774,10 +1814,11 @@ function metricTiles(items) {
       ${items
         .map(
           ([label, value, note]) => `
-            <article class="metric detail-metric">
+            <article class="metric detail-metric" ${scoreGuide(label) ? `title="${esc(scoreGuide(label))}"` : ""}>
               <span>${esc(label)}</span>
               <strong>${esc(value)}</strong>
               <small>${esc(note)}</small>
+              ${scoreGuide(label) ? `<em>${esc(scoreBand(label, value))} · ${esc(scoreGuide(label))}</em>` : ""}
             </article>
           `,
         )
@@ -2061,6 +2102,7 @@ function renderSectorDetail(sector) {
         ["Trend", sector.trend, "趋势评分"],
         ["Risk", sector.risk, "风险评分"],
       ])}
+      ${scoreLegend()}
     </section>
 
     <section class="detail-grid">
@@ -2119,6 +2161,7 @@ function renderAssetDetail(asset) {
         ["Risk", asset.risk, "风险压力"],
         ["Sentiment", assetSentiment(asset), "情绪估计"],
       ])}
+      ${scoreLegend()}
     </section>
 
     <section class="detail-layout">
