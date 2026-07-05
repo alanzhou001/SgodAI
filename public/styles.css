@@ -676,6 +676,13 @@ td span {
   margin-bottom: 12px;
 }
 
+.graph-source {
+  margin: -2px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 #graphCanvas {
   width: 100%;
   height: min(62vh, 520px);
@@ -763,6 +770,12 @@ td span {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .check-grid {

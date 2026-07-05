@@ -201,6 +201,89 @@ const assetCatalog = [
   },
 ];
 
+const industryAssistProfiles = [
+  {
+    terms: ["ai算力", "算力", "gpu", "服务器"],
+    horizon: "long",
+    driver: "云厂商资本开支、国产算力替代和大模型推理需求共同驱动",
+    risks: "海外出口限制、算力供应瓶颈、估值拥挤",
+    indicators: ["云厂商资本开支", "GPU/ASIC供给", "服务器订单", "数据中心电力"],
+    upstream: ["GPU/ASIC", "先进封装", "光模块", "服务器ODM"],
+    downstream: ["云计算", "大模型应用", "数据中心", "企业AI软件"],
+    relatedTickers: ["NVDA.US", "TSM.US"],
+  },
+  {
+    terms: ["hbm", "高带宽存储"],
+    horizon: "medium",
+    driver: "AI服务器拉动高带宽存储需求，先进封装和供给节奏决定景气弹性",
+    risks: "扩产节奏、客户集中度、海外龙头资本开支波动",
+    indicators: ["HBM价格", "先进封装产能", "AI服务器出货", "海外龙头指引"],
+    upstream: ["DRAM晶圆", "先进封装", "半导体设备", "封装材料"],
+    downstream: ["AI服务器", "GPU模组", "云计算", "高性能计算"],
+    relatedTickers: ["688525.SH", "603986.SH", "NVDA.US", "TSM.US"],
+  },
+  {
+    terms: ["存储芯片", "dram", "nand", "存储"],
+    horizon: "medium",
+    driver: "价格周期改善、库存回补和AI终端容量升级共同影响盈利弹性",
+    risks: "库存回补后需求放缓、价格回落、周期波动",
+    indicators: ["DRAM价格", "NAND价格", "库存天数", "下游锁单"],
+    upstream: ["晶圆制造", "半导体设备", "材料", "封测"],
+    downstream: ["AI服务器", "消费电子", "汽车电子", "工业控制"],
+    relatedTickers: ["688525.SH", "603986.SH", "NVDA.US"],
+  },
+  {
+    terms: ["半导体设备", "设备", "晶圆厂"],
+    horizon: "long",
+    driver: "国产替代、晶圆厂资本开支和先进制程验证推进共同驱动",
+    risks: "订单兑现、出口管制、研发投入和客户验证周期",
+    indicators: ["设备订单", "晶圆厂资本开支", "国产化率", "验收节奏"],
+    upstream: ["核心零部件", "精密加工", "电子材料", "工业软件"],
+    downstream: ["晶圆制造", "先进封装", "存储芯片", "功率半导体"],
+    relatedTickers: ["TSM.US", "603986.SH", "688525.SH"],
+  },
+  {
+    terms: ["创新药", "biotech", "医药"],
+    horizon: "long",
+    driver: "临床数据读出、BD授权交易和支付环境变化影响行业风险偏好",
+    risks: "研发失败、医保支付、监管审评和融资环境变化",
+    indicators: ["临床数据", "BD交易", "融资环境", "医保政策"],
+    upstream: ["CXO", "靶点发现", "临床试验", "原料药"],
+    downstream: ["商业化销售", "医院终端", "医保支付", "海外授权"],
+    relatedTickers: ["2269.HK"],
+  },
+  {
+    terms: ["低空经济", "低空", "无人机", "evtol"],
+    horizon: "short",
+    driver: "地方试点、空域改革和应用场景订单推动主题验证",
+    risks: "商业模式验证不足、适航审批、基础设施建设节奏",
+    indicators: ["地方政策", "订单公告", "空域改革", "适航进度"],
+    upstream: ["电池", "航电系统", "复合材料", "飞控芯片"],
+    downstream: ["城市交通", "物流巡检", "应急救援", "文旅场景"],
+    relatedTickers: [],
+  },
+  {
+    terms: ["储能", "电池", "新能源"],
+    horizon: "medium",
+    driver: "海外订单、利用小时和电芯价格变化决定盈利修复节奏",
+    risks: "价格竞争、海外政策变化、产能利用率不足",
+    indicators: ["电芯价格", "海外订单", "利用小时", "装机规模"],
+    upstream: ["锂电材料", "电芯", "PCS", "温控系统"],
+    downstream: ["新能源电站", "工商业储能", "电网侧储能", "海外渠道"],
+    relatedTickers: ["300750.SZ"],
+  },
+  {
+    terms: ["铜", "铝", "锂", "资源"],
+    horizon: "medium",
+    driver: "矿端扰动、库存变化和电网/数据中心需求共同影响资源品价格",
+    risks: "全球经济波动、美元流动性、库存拐点",
+    indicators: ["LME库存", "现货升贴水", "矿端扰动", "下游开工率"],
+    upstream: ["矿山", "冶炼", "再生金属", "物流"],
+    downstream: ["电网", "新能源车", "数据中心", "家电"],
+    relatedTickers: [],
+  },
+];
+
 const defaultConfig = {
   sectorIds: ["ai_compute", "hbm", "memory", "biotech", "low_altitude", "copper"],
   assetTickers: ["688525.SH", "603986.SH", "NVDA.US", "300750.SZ"],
@@ -332,6 +415,150 @@ function slug(value) {
     .slice(0, 32);
 }
 
+function listFromValue(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  return String(value || "")
+    .split(/[,，、/;；\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function uniqBy(items, keyFn) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = keyFn(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function allAssets() {
+  return [...assetCatalog, ...appConfig.customAssets];
+}
+
+function activeLlmProvider() {
+  return (
+    appConfig.llm.providers.find((provider) => provider.id === appConfig.llm.defaultProvider) ||
+    appConfig.llm.providers.find((provider) => provider.enabled) ||
+    appConfig.llm.providers[0]
+  );
+}
+
+function matchIndustryProfile(input) {
+  const text = normalize(input);
+  return (
+    industryAssistProfiles.find((profile) =>
+      profile.terms.some((term) => text.includes(normalize(term)) || normalize(term).includes(text)),
+    ) || null
+  );
+}
+
+function genericIndustryProfile(name) {
+  return {
+    terms: [name],
+    horizon: "medium",
+    driver: `${name} 处于用户自定义研究范围，需跟踪政策、供需、价格和订单变化`,
+    risks: "数据源尚未接入，产业链映射和财务验证需要继续补充",
+    indicators: ["政策变化", "订单变化", "价格变化", "供需格局"],
+    upstream: ["原材料", "核心零部件", "设备/服务"],
+    downstream: ["终端应用", "渠道客户", "行业需求"],
+    relatedTickers: [],
+  };
+}
+
+function sectorProfile(sector) {
+  const seed = [sector.name, sector.driver, ...(sector.indicators || [])].join(" ");
+  const matched = matchIndustryProfile(seed) || genericIndustryProfile(sector.name);
+  const indicators = listFromValue(sector.indicators).length ? listFromValue(sector.indicators) : matched.indicators;
+  return {
+    ...matched,
+    horizon: sector.horizon || matched.horizon,
+    driver: sector.driver || matched.driver,
+    risks: sector.risks || matched.risks,
+    indicators,
+    upstream: listFromValue(sector.upstream).length ? listFromValue(sector.upstream) : matched.upstream,
+    downstream: listFromValue(sector.downstream).length ? listFromValue(sector.downstream) : matched.downstream,
+    relatedTickers: listFromValue(sector.relatedTickers).length
+      ? listFromValue(sector.relatedTickers)
+      : matched.relatedTickers,
+  };
+}
+
+function relatedAssetsForSector(sector) {
+  const profile = sectorProfile(sector);
+  const text = normalize([sector.name, profile.terms.join(" "), profile.downstream.join(" "), profile.upstream.join(" ")].join(" "));
+  const byTicker = new Map(allAssets().map((asset) => [asset.ticker, asset]));
+  const explicit = profile.relatedTickers.map((ticker) => byTicker.get(ticker)).filter(Boolean);
+  const semantic = allAssets().filter((asset) => {
+    const assetText = normalize([asset.name, asset.ticker, asset.sector].join(" "));
+    return asset.sector === sector.name || text.includes(normalize(asset.sector)) || assetText.includes(normalize(sector.name));
+  });
+  const watched = currentData.assets.filter((asset) => asset.sector === sector.name);
+  return uniqBy([...watched, ...explicit, ...semantic], (asset) => asset.ticker).slice(0, 5);
+}
+
+function localLlmAssist(kind, payload) {
+  if (kind === "sector") {
+    const name = String(payload.name || "").trim();
+    const profile = matchIndustryProfile(name) || genericIndustryProfile(name || "新行业");
+    const relatedTickers = relatedAssetsForProfile(name, profile).map((asset) => asset.ticker);
+    return { ...profile, relatedTickers };
+  }
+  if (kind === "asset") {
+    return inferAssetDraft(payload.name, payload);
+  }
+  return {};
+}
+
+function relatedAssetsForProfile(name, profile) {
+  const text = normalize([name, profile.terms.join(" "), profile.upstream.join(" "), profile.downstream.join(" ")].join(" "));
+  const explicit = new Set(profile.relatedTickers || []);
+  return uniqBy(
+    allAssets().filter((asset) => {
+      const assetText = normalize([asset.name, asset.ticker, asset.sector].join(" "));
+      return explicit.has(asset.ticker) || text.includes(normalize(asset.sector)) || assetText.includes(normalize(name));
+    }),
+    (asset) => asset.ticker,
+  ).slice(0, 5);
+}
+
+function inferAssetDraft(name, payload = {}) {
+  const rawName = String(name || "").trim();
+  const q = normalize(rawName);
+  const matched = allAssets().find((asset) => {
+    const haystack = normalize([asset.name, asset.ticker].join(" "));
+    return q && (haystack.includes(q) || q.includes(normalize(asset.name)));
+  });
+  if (matched) return clone(matched);
+  const sectors = [...sectorCatalog, ...appConfig.customSectors];
+  const matchedSector =
+    sectors.find((sector) => normalize(rawName).includes(normalize(sector.name))) ||
+    sectors.find((sector) => {
+      const profile = sectorProfile(sector);
+      return profile.terms.some((term) => normalize(rawName).includes(normalize(term)));
+    }) ||
+    sectors[0];
+  return {
+    ticker: String(payload.ticker || "").trim().toUpperCase(),
+    name: rawName,
+    market: String(payload.market || "A-share"),
+    sector: String(payload.sector || matchedSector?.name || "待分类").trim(),
+    state: "观察",
+    impact: 50,
+    trend: 50,
+    risk: 45,
+    evidence: "llm_assist_pending_source",
+    events: [["配置", "LLM 辅助生成初稿，等待真实数据源验证"]],
+  };
+}
+
+async function requestLlmAssistance(kind, payload) {
+  const provider = activeLlmProvider();
+  const label = provider?.name ? `Local Assist（${provider.name} schema）` : "Local Assist";
+  return { provider: label, result: localLlmAssist(kind, payload) };
+}
+
 function loadConfig() {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (!stored) return clone(defaultConfig);
@@ -389,15 +616,17 @@ function buildAlerts(sectors, assets) {
   const trendSector = [...sectors].sort((a, b) => b.trend - a.trend)[0];
   const riskSector = [...sectors].sort((a, b) => b.risk - a.risk)[0];
   const riskAsset = [...assets].sort((a, b) => b.risk - a.risk)[0];
+  const trendProfile = trendSector ? sectorProfile(trendSector) : null;
+  const riskProfile = riskSector ? sectorProfile(riskSector) : null;
   return [
     trendSector && {
       title: `${trendSector.name} Trend Score 位于前列`,
-      detail: `Trend ${trendSector.trend}，核心变量：${trendSector.indicators.slice(0, 2).join(" / ")}`,
+      detail: `Trend ${trendSector.trend}，核心变量：${trendProfile.indicators.slice(0, 2).join(" / ")}`,
       severity: "high",
     },
     riskSector && {
       title: `${riskSector.name} Risk Score ${riskSector.risk}`,
-      detail: riskSector.risks,
+      detail: riskProfile.risks,
       severity: "risk",
     },
     riskAsset && {
@@ -422,7 +651,17 @@ function statusClass(state) {
 
 function sectorMatchesQuery(sector, query) {
   if (!query) return true;
-  const text = [sector.name, sector.horizon, sector.driver, sector.risks, ...sector.indicators].join(" ");
+  const profile = sectorProfile(sector);
+  const text = [
+    sector.name,
+    profile.horizon,
+    profile.driver,
+    profile.risks,
+    ...profile.indicators,
+    ...profile.upstream,
+    ...profile.downstream,
+    ...profile.relatedTickers,
+  ].join(" ");
   return normalize(text).includes(query);
 }
 
@@ -494,21 +733,24 @@ function renderSectorCards(target, boardMode = false) {
   document.querySelector(target).innerHTML =
     sectors
       .map(
-        (sector) => `
-          <article class="sector-card">
-            <header>
-              <h3>${esc(sector.name)}</h3>
-              <span class="pill ${esc(sector.level)}">${horizonLabel(sector.horizon)}</span>
-            </header>
-            ${scoreBars(sector)}
-            <p>${esc(sector.driver)}</p>
-            ${
-              boardMode
-                ? `<p>观察指标：${esc(sector.indicators.join(" / "))}</p><p>风险：${esc(sector.risks)}</p>`
-                : ""
-            }
-          </article>
-        `,
+        (sector) => {
+          const profile = sectorProfile(sector);
+          return `
+            <article class="sector-card">
+              <header>
+                <h3>${esc(sector.name)}</h3>
+                <span class="pill ${esc(sector.level)}">${horizonLabel(profile.horizon)}</span>
+              </header>
+              ${scoreBars(sector)}
+              <p>${esc(profile.driver)}</p>
+              ${
+                boardMode
+                  ? `<p>上游/下游：${esc(profile.upstream.slice(0, 2).join(" / "))} → ${esc(profile.downstream.slice(0, 2).join(" / "))}</p><p>观察指标：${esc(profile.indicators.join(" / "))}</p><p>风险：${esc(profile.risks)}</p>`
+                  : ""
+              }
+            </article>
+          `;
+        },
       )
       .join("") || emptyState("暂无行业配置", "sectors");
 }
@@ -592,13 +834,16 @@ function searchCatalog(query) {
   if (!q) return [];
   const sectors = [...sectorCatalog, ...appConfig.customSectors]
     .filter((sector) => sectorMatchesQuery(sector, q))
-    .map((sector) => ({
-      kind: "sector",
-      id: sector.id,
-      title: sector.name,
-      meta: `${horizonLabel(sector.horizon)} · ${sector.indicators.slice(0, 2).join(" / ")}`,
-      added: appConfig.sectorIds.includes(sector.id),
-    }));
+    .map((sector) => {
+      const profile = sectorProfile(sector);
+      return {
+        kind: "sector",
+        id: sector.id,
+        title: sector.name,
+        meta: `${horizonLabel(profile.horizon)} · ${profile.upstream.slice(0, 1).join(" / ")} → ${profile.downstream.slice(0, 1).join(" / ")}`,
+        added: appConfig.sectorIds.includes(sector.id),
+      };
+    });
   const assets = [...assetCatalog, ...appConfig.customAssets]
     .filter((asset) => assetMatchesQuery(asset, q))
     .map((asset) => ({
@@ -731,40 +976,65 @@ function renderGraphControls() {
   if (depth) depth.value = String(uiState.graphDepth);
 }
 
+function spreadY(total, index, top = 120, bottom = 405) {
+  if (total <= 1) return (top + bottom) / 2;
+  return top + ((bottom - top) * index) / (total - 1);
+}
+
 function graphData() {
   const sector = currentData.sectors.find((item) => item.id === uiState.graphFocus) || currentData.sectors[0];
-  if (!sector) return { nodes: [], edges: [], paths: [] };
-  const assets = currentData.assets.filter((asset) => asset.sector === sector.name).slice(0, 3);
-  const indicators = sector.indicators.slice(0, 3);
+  if (!sector) return { nodes: [], edges: [], paths: [], source: "暂无本地行业配置" };
+  const profile = sectorProfile(sector);
+  const upstream = profile.upstream.slice(0, 4);
+  const downstream = profile.downstream.slice(0, 4);
+  const indicators = profile.indicators.slice(0, 3);
+  const assets = relatedAssetsForSector(sector);
   const nodes = [
-    { id: "sector", label: sector.name, x: 150, y: 255, color: "#007c78", depth: 0 },
-    ...indicators.map((label, index) => ({
-      id: `indicator_${index}`,
+    ...upstream.map((label, index) => ({
+      id: `upstream_${index}`,
       label,
-      x: 360,
-      y: 140 + index * 112,
+      caption: "上游",
+      x: 140,
+      y: spreadY(upstream.length, index),
       color: "#0066cc",
+      depth: 1,
+    })),
+    { id: "sector", label: sector.name, caption: horizonLabel(profile.horizon), x: 410, y: 260, color: "#007c78", depth: 0 },
+    ...downstream.map((label, index) => ({
+      id: `downstream_${index}`,
+      label,
+      caption: "下游",
+      x: 675,
+      y: spreadY(downstream.length, index),
+      color: "#6d5bd0",
       depth: 1,
     })),
     ...assets.map((asset, index) => ({
       id: `asset_${index}`,
       label: asset.name,
-      x: 625,
-      y: 155 + index * 120,
+      caption: asset.ticker,
+      x: 990,
+      y: spreadY(Math.max(assets.length, 1), index, 96, 424),
       color: asset.risk >= 65 ? "#c9342f" : "#248a3d",
       depth: 2,
     })),
-    { id: "risk", label: "风险变量", x: 860, y: 180, color: "#b26a00", depth: 2 },
-    { id: "report", label: "日报/周报", x: 1040, y: 255, color: "#6e6e73", depth: 3 },
+    ...indicators.map((label, index) => ({
+      id: `indicator_${index}`,
+      label,
+      caption: "指标",
+      x: 410,
+      y: 82 + index * 62,
+      color: "#b26a00",
+      depth: 3,
+    })),
+    { id: "risk", label: "风险变量", caption: "Risk", x: 410, y: 450, color: "#c9342f", depth: 3 },
   ];
   const edges = [
-    ...indicators.map((_, index) => ["sector", `indicator_${index}`, 1]),
-    ...assets.flatMap((_, assetIndex) =>
-      indicators.map((__, indicatorIndex) => [`indicator_${indicatorIndex}`, `asset_${assetIndex}`, 2]),
-    ),
-    ["sector", "risk", 2],
-    ...assets.map((_, index) => [`asset_${index}`, "report", 3]),
-    ["risk", "report", 3],
+    ...upstream.map((_, index) => [`upstream_${index}`, "sector", 1]),
+    ...downstream.map((_, index) => ["sector", `downstream_${index}`, 1]),
+    ...assets.map((_, index) => ["sector", `asset_${index}`, 2]),
+    ...indicators.map((_, index) => ["sector", `indicator_${index}`, 3]),
+    ["sector", "risk", 3],
   ].filter((edge) => edge[2] <= uiState.graphDepth);
   const allowed = new Set(["sector"]);
   edges.forEach(([from, to]) => {
@@ -772,10 +1042,42 @@ function graphData() {
     allowed.add(to);
   });
   const paths = [
-    `${sector.name} → ${indicators[0] || "关键指标"} → ${assets[0]?.name || "代表公司"}`,
-    `${sector.name} → 风险变量 → 日报/周报`,
+    `上游：${upstream.join(" / ") || "待补充"} → ${sector.name}`,
+    `下游：${sector.name} → ${downstream.join(" / ") || "待补充"}`,
+    `相关标的：${assets.map((asset) => `${asset.name}(${asset.ticker})`).join(" / ") || "待 LLM/DataProvider 筛选"}`,
+    `观察指标：${indicators.join(" / ") || "待补充"}；风险：${profile.risks}`,
   ];
-  return { nodes: nodes.filter((node) => allowed.has(node.id)), edges, paths };
+  return {
+    nodes: nodes.filter((node) => allowed.has(node.id) && node.depth <= uiState.graphDepth),
+    edges,
+    paths,
+    source: "来源：本地配置 + Demo Catalog；后续由 DataProvider/LLM enrichment 写入 KnowledgeGraphNode/Edge",
+  };
+}
+
+function roundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function ellipsizeText(ctx, text, maxWidth) {
+  const value = String(text || "");
+  if (ctx.measureText(value).width <= maxWidth) return value;
+  let result = value;
+  while (result.length > 1 && ctx.measureText(`${result}…`).width > maxWidth) {
+    result = result.slice(0, -1);
+  }
+  return `${result}…`;
 }
 
 function drawGraph() {
@@ -794,9 +1096,13 @@ function drawGraph() {
   const scaleX = rect.width / 1200;
   const scaleY = rect.height / 520;
   const nodes = new Map(data.nodes.map((node) => [node.id, node]));
+  const styles = getComputedStyle(document.documentElement);
+  const textColor = styles.getPropertyValue("--text");
+  const mutedColor = styles.getPropertyValue("--muted");
+  const surfaceColor = styles.getPropertyValue("--surface-strong");
 
-  ctx.lineWidth = 1.4;
-  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--line");
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = styles.getPropertyValue("--line");
   data.edges.forEach(([from, to]) => {
     const a = nodes.get(from);
     const b = nodes.get(to);
@@ -810,22 +1116,33 @@ function drawGraph() {
   data.nodes.forEach((node) => {
     const x = node.x * scaleX;
     const y = node.y * scaleY;
-    ctx.beginPath();
-    ctx.arc(x, y, 28, 0, Math.PI * 2);
-    ctx.fillStyle = node.color;
+    const width = Math.max(108, Math.min(146, 132 * scaleX));
+    const height = 54;
+    const left = x - width / 2;
+    const top = y - height / 2;
+    roundedRect(ctx, left, top, width, height, 8);
+    ctx.fillStyle = surfaceColor;
     ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "rgba(255,255,255,0.72)";
+    ctx.lineWidth = node.id === "sector" ? 2.2 : 1.4;
+    ctx.strokeStyle = node.color;
     ctx.stroke();
-    ctx.font = "13px -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--text");
-    ctx.fillText(node.label, x, y + 48);
+    ctx.fillStyle = node.color;
+    roundedRect(ctx, left, top, 5, height, 4);
+    ctx.fill();
+    ctx.textAlign = "left";
+    ctx.font = "12px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillStyle = mutedColor;
+    ctx.fillText(ellipsizeText(ctx, node.caption || "", width - 22), left + 14, top + 19);
+    ctx.font = "600 13px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillStyle = textColor;
+    ctx.fillText(ellipsizeText(ctx, node.label, width - 22), left + 14, top + 38);
   });
 
   const pathLabel = document.querySelector("#pathLabel");
   const pathList = document.querySelector("#pathList");
+  const graphSource = document.querySelector("#graphSource");
   if (pathLabel) pathLabel.textContent = data.paths[0] || "暂无路径";
+  if (graphSource) graphSource.textContent = data.source || "";
   if (pathList) {
     pathList.innerHTML = data.paths.map((path) => `<span>${esc(path)}</span>`).join("");
   }
@@ -853,22 +1170,31 @@ function renderSectorConfig() {
         <h3>新增行业 / 板块</h3>
         <div class="form-row two">
           <label>名称<input name="name" required placeholder="例如：机器人"></label>
-          <label>周期<select name="horizon"><option value="long">长期</option><option value="medium">中期</option><option value="short">短期</option></select></label>
+          <label>周期<select name="horizon"><option value="">自动</option><option value="long">长期</option><option value="medium">中期</option><option value="short">短期</option></select></label>
         </div>
         <label>核心驱动<input name="driver" placeholder="产业趋势、政策、订单、价格"></label>
-        <label>观察指标<input name="indicators" placeholder="用逗号分隔"></label>
-        <button class="primary-button" type="submit">添加行业</button>
+        <label>观察指标<input name="indicators" placeholder="政策，订单，价格"></label>
+        <div class="form-row two">
+          <label>上游行业<input name="upstream" placeholder="例如：材料，设备，核心零部件"></label>
+          <label>下游行业<input name="downstream" placeholder="例如：终端应用，渠道客户"></label>
+        </div>
+        <label>相关标的<input name="relatedTickers" placeholder="688525.SH，603986.SH"></label>
+        <div class="form-actions">
+          <button class="primary-button" type="submit">添加行业</button>
+          <button class="text-button" type="button" data-action="assist-sector-form">AI 补全</button>
+        </div>
       </form>
       <div class="config-list">
         <h3>可选行业</h3>
         ${catalogItems
           .map((sector) => {
             const added = appConfig.sectorIds.includes(sector.id);
+            const profile = sectorProfile(sector);
             return `
               <article class="config-item">
                 <div>
                   <strong>${esc(sector.name)}</strong>
-                  <span>${horizonLabel(sector.horizon)} · ${esc(sector.indicators.join(" / "))}</span>
+                  <span>${horizonLabel(profile.horizon)} · ${esc(profile.upstream.slice(0, 2).join(" / "))} → ${esc(profile.downstream.slice(0, 2).join(" / "))}</span>
                 </div>
                 <button class="text-button" data-action="${added ? "remove-sector" : "add-sector"}" data-id="${esc(sector.id)}">${added ? "移除" : "添加"}</button>
               </article>
@@ -887,14 +1213,17 @@ function renderAssetConfig() {
       <form class="config-form" id="assetForm">
         <h3>新增关注标的</h3>
         <div class="form-row two">
-          <label>代码<input name="ticker" required placeholder="例如：688981.SH"></label>
           <label>名称<input name="name" required placeholder="例如：中芯国际"></label>
+          <label>代码<input name="ticker" placeholder="例如：688981.SH"></label>
         </div>
         <div class="form-row two">
-          <label>市场<select name="market"><option>A-share</option><option>HK</option><option>US</option><option>ETF</option></select></label>
-          <label>行业<input name="sector" required placeholder="例如：半导体设备"></label>
+          <label>市场<select name="market"><option value="">自动</option><option>A-share</option><option>HK</option><option>US</option><option>ETF</option></select></label>
+          <label>行业<input name="sector" placeholder="例如：半导体设备"></label>
         </div>
-        <button class="primary-button" type="submit">添加标的</button>
+        <div class="form-actions">
+          <button class="primary-button" type="submit">添加标的</button>
+          <button class="text-button" type="button" data-action="assist-asset-form">AI 补全</button>
+        </div>
       </form>
       <div class="config-list">
         <h3>可选标的</h3>
@@ -1063,6 +1392,15 @@ function renderConfigPreview() {
         sectors: currentData.sectors.map((sector) => sector.name),
         tickers: appConfig.assetTickers,
       },
+      knowledge_graph: currentData.sectors.map((sector) => {
+        const profile = sectorProfile(sector);
+        return {
+          sector: sector.name,
+          upstream: profile.upstream,
+          downstream: profile.downstream,
+          related_tickers: profile.relatedTickers,
+        };
+      }),
       email_targets: appConfig.emailTargets,
       llm: appConfig.llm,
       data_sources: appConfig.providers,
@@ -1119,27 +1457,74 @@ function showToast(message) {
   toastTimer = setTimeout(() => toast.classList.remove("show"), 1700);
 }
 
+async function assistSectorForm(form) {
+  if (!form) return;
+  const name = form.elements.name?.value.trim();
+  if (!name) {
+    showToast("请先填写行业名称");
+    form.elements.name?.focus();
+    return;
+  }
+  const { provider, result } = await requestLlmAssistance("sector", { name });
+  if (!form.elements.horizon.value) form.elements.horizon.value = result.horizon || "medium";
+  form.elements.driver.value = form.elements.driver.value || result.driver || "";
+  form.elements.indicators.value = form.elements.indicators.value || (result.indicators || []).join("，");
+  form.elements.upstream.value = form.elements.upstream.value || (result.upstream || []).join("，");
+  form.elements.downstream.value = form.elements.downstream.value || (result.downstream || []).join("，");
+  form.elements.relatedTickers.value = form.elements.relatedTickers.value || (result.relatedTickers || []).join("，");
+  showToast(`${provider} 已生成行业画像草稿`);
+}
+
+async function assistAssetForm(form) {
+  if (!form) return;
+  const name = form.elements.name?.value.trim();
+  if (!name) {
+    showToast("请先填写标的名称");
+    form.elements.name?.focus();
+    return;
+  }
+  const { provider, result } = await requestLlmAssistance("asset", {
+    name,
+    ticker: form.elements.ticker?.value,
+    market: form.elements.market?.value,
+    sector: form.elements.sector?.value,
+  });
+  form.elements.ticker.value = form.elements.ticker.value || result.ticker || "";
+  form.elements.market.value = form.elements.market.value || result.market || "A-share";
+  form.elements.sector.value = form.elements.sector.value || result.sector || "";
+  showToast(`${provider} 已生成标的配置草稿`);
+}
+
 function createSector(form) {
   const data = new FormData(form);
   const name = String(data.get("name") || "").trim();
   if (!name) return;
+  const assist = localLlmAssist("sector", { name });
   const id = `custom_${slug(name)}_${Date.now().toString(36)}`;
   const sector = {
     id,
     name,
-    horizon: String(data.get("horizon") || "medium"),
+    horizon: String(data.get("horizon") || assist.horizon || "medium"),
     level: "medium",
     impact: 55,
     trend: 50,
     sentiment: 50,
     risk: 45,
-    driver: String(data.get("driver") || "用户自定义研究方向").trim(),
-    risks: "待补充",
-    indicators: String(data.get("indicators") || "")
-      .split(/[,，]/)
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .slice(0, 5),
+    driver: String(data.get("driver") || assist.driver || "用户自定义研究方向").trim(),
+    risks: assist.risks || "待补充",
+    indicators: listFromValue(data.get("indicators")).length
+      ? listFromValue(data.get("indicators")).slice(0, 5)
+      : assist.indicators.slice(0, 5),
+    upstream: listFromValue(data.get("upstream")).length
+      ? listFromValue(data.get("upstream")).slice(0, 5)
+      : assist.upstream.slice(0, 5),
+    downstream: listFromValue(data.get("downstream")).length
+      ? listFromValue(data.get("downstream")).slice(0, 5)
+      : assist.downstream.slice(0, 5),
+    relatedTickers: listFromValue(data.get("relatedTickers")).length
+      ? listFromValue(data.get("relatedTickers")).slice(0, 8)
+      : assist.relatedTickers.slice(0, 8),
+    source: "manual_or_llm_assist",
   };
   if (!sector.indicators.length) sector.indicators = ["政策", "订单", "价格"];
   appConfig.customSectors.push(sector);
@@ -1151,21 +1536,28 @@ function createSector(form) {
 
 function createAsset(form) {
   const data = new FormData(form);
-  const ticker = String(data.get("ticker") || "").trim().toUpperCase();
   const name = String(data.get("name") || "").trim();
-  const sector = String(data.get("sector") || "").trim();
-  if (!ticker || !name || !sector) return;
+  if (!name) return;
+  const draft = inferAssetDraft(name, {
+    ticker: data.get("ticker"),
+    market: data.get("market"),
+    sector: data.get("sector"),
+  });
+  const ticker =
+    String(data.get("ticker") || draft.ticker || "").trim().toUpperCase() ||
+    `LOCAL.${slug(name).toUpperCase() || Date.now().toString(36).toUpperCase()}`;
+  const sector = String(data.get("sector") || draft.sector || "待分类").trim();
   const asset = {
     ticker,
     name,
-    market: String(data.get("market") || "A-share"),
+    market: String(data.get("market") || draft.market || "A-share"),
     sector,
-    state: "观察",
-    impact: 50,
-    trend: 50,
-    risk: 45,
-    evidence: "manual_config",
-    events: [["配置", "用户手动添加关注标的"]],
+    state: draft.state || "观察",
+    impact: draft.impact || 50,
+    trend: draft.trend || 50,
+    risk: draft.risk || 45,
+    evidence: draft.evidence || "manual_config",
+    events: draft.events || [["配置", "用户手动添加关注标的"]],
   };
   appConfig.customAssets = appConfig.customAssets.filter((item) => item.ticker !== ticker);
   appConfig.customAssets.push(asset);
@@ -1318,6 +1710,8 @@ function bindEvents() {
     if (action === "delete-email") deleteEmail(id);
     if (action === "toggle-provider") toggleProvider(id);
     if (action === "toggle-llm") toggleLlm(id);
+    if (action === "assist-sector-form") assistSectorForm(button.closest("form"));
+    if (action === "assist-asset-form") assistAssetForm(button.closest("form"));
     if (action === "set-default-llm") {
       appConfig.llm.defaultProvider = id;
       persistConfig("默认模型已更新");
