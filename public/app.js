@@ -517,6 +517,7 @@ const industryAssistProfiles = [
 
 const defaultConfig = {
   sectorIds: ["ai_compute", "hbm", "memory", "biotech", "low_altitude", "copper"],
+  deletedSectorIds: [],
   assetTickers: ["688525.SH", "603986.SH", "NVDA.US", "300750.SZ"],
   customSectors: [],
   customAssets: [],
@@ -577,10 +578,10 @@ const defaultConfig = {
     {
       id: "market_data",
       name: "MarketDataProvider",
-      type: "akshare",
-      enabled: false,
+      type: "akshare + sina_a_share_fallback",
+      enabled: true,
       cadence: "15 min",
-      endpoint: "adapter://akshare",
+      endpoint: "adapter://akshare, adapter://sina_a_share",
     },
     {
       id: "announcement",
@@ -636,6 +637,7 @@ const uiState = {
 
 const commandHiddenViews = new Set(["graph", "settings"]);
 const marketDataCache = new Map();
+const intelligenceCache = new Map();
 let searchTimer = null;
 
 function clone(value) {
@@ -662,6 +664,20 @@ function apiUrl(path) {
 async function apiGet(path) {
   const response = await fetch(apiUrl(path), {
     headers: { Accept: "application/json" },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof payload.detail === "string" ? payload.detail : JSON.stringify(payload.detail || {});
+    throw new Error(detail || `API ${response.status}`);
+  }
+  return payload;
+}
+
+async function apiPost(path, body) {
+  const response = await fetch(apiUrl(path), {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -719,7 +735,12 @@ function allAssets() {
 }
 
 function allSectors() {
-  return [...sectorCatalog, ...appConfig.customSectors];
+  const deleted = new Set(appConfig.deletedSectorIds || []);
+  return [...sectorCatalog, ...appConfig.customSectors].filter((sector) => !deleted.has(sector.id));
+}
+
+function isCustomSector(id) {
+  return appConfig.customSectors.some((sector) => sector.id === id);
 }
 
 function findSectorById(id) {
@@ -872,7 +893,7 @@ function inferAssetDraft(name, payload = {}) {
     return q && (haystack.includes(q) || q.includes(normalize(asset.name)));
   });
   if (matched) return clone(matched);
-  const sectors = [...sectorCatalog, ...appConfig.customSectors];
+  const sectors = allSectors();
   const matchedSector =
     sectors.find((sector) => normalize(rawName).includes(normalize(sector.name))) ||
     sectors.find((sector) => {
@@ -895,9 +916,67 @@ function inferAssetDraft(name, payload = {}) {
 }
 
 async function requestLlmAssistance(kind, payload) {
-  const provider = activeLlmProvider();
-  const label = provider?.name ? `Local Assist（${provider.name} schema）` : "Local Assist";
-  return { provider: label, result: localLlmAssist(kind, payload) };
+  try {
+    const response = await apiPost("/api/llm/config-assist", {
+      kind,
+      ...payload,
+      market_scope: ["A-share", "HK"],
+    });
+    return {
+      provider: `${response.provider || "DeepSeek"}${response.model ? ` · ${response.model}` : ""}`,
+      result: normalizeAssistResult(kind, response.result || {}),
+      fallback: false,
+    };
+  } catch (error) {
+    const provider = activeLlmProvider();
+    const label = provider?.name ? `Local fallback（${provider.name} API 不可用）` : "Local fallback";
+    return { provider: label, result: localLlmAssist(kind, payload), fallback: true, error: error.message };
+  }
+}
+
+function normalizeAssistResult(kind, result) {
+  if (kind === "sector") {
+    const validatedAssets = Array.isArray(result.validatedAssets) ? result.validatedAssets : [];
+    return {
+      horizon: result.horizon || "medium",
+      driver: result.driver || result.summary || "",
+      risks: Array.isArray(result.risks) ? result.risks.join("；") : result.risks || "",
+      indicators: listFromValue(result.indicators),
+      upstream: listFromValue(result.upstream),
+      downstream: listFromValue(result.downstream),
+      relatedTickers: listFromValue(result.relatedTickers).length
+        ? listFromValue(result.relatedTickers)
+        : validatedAssets.map((asset) => asset.ticker).filter(Boolean),
+      validatedAssets,
+      confidence: result.confidence,
+      riskNotes: result.risk_notes || [],
+    };
+  }
+  return {
+    ...result,
+    ticker: String(result.ticker || "").trim().toUpperCase(),
+    market: result.market || "A-share",
+    sector: result.sector || "待分类",
+    validatedAssets: Array.isArray(result.validatedAssets) ? result.validatedAssets : [],
+  };
+}
+
+function upsertValidatedAssets(assets, sectorName) {
+  (assets || []).forEach((item) => {
+    if (!item.ticker || findAssetByTicker(item.ticker)) return;
+    appConfig.customAssets.push({
+      ticker: item.ticker,
+      name: item.name || item.ticker,
+      market: item.market || "A-share",
+      sector: sectorName || "待分类",
+      state: "观察",
+      impact: 50,
+      trend: 50,
+      risk: 45,
+      evidence: `deepseek_validated:${item.source || "asset_search"}`,
+      events: [["DeepSeek", item.rationale || "AI 补全候选标的已通过真实标的搜索校验"]],
+    });
+  });
 }
 
 function loadConfig() {
@@ -911,6 +990,7 @@ function loadConfig() {
       llm: { ...clone(defaultConfig.llm), ...(parsed.llm || {}) },
       providers: parsed.providers || clone(defaultConfig.providers),
       emailTargets: parsed.emailTargets || clone(defaultConfig.emailTargets),
+      deletedSectorIds: parsed.deletedSectorIds || [],
       customSectors: parsed.customSectors || [],
       customAssets: parsed.customAssets || [],
     };
@@ -937,9 +1017,7 @@ function flashSaveState() {
 }
 
 function buildData() {
-  const sectors = [...sectorCatalog, ...appConfig.customSectors].filter((sector) =>
-    appConfig.sectorIds.includes(sector.id),
-  );
+  const sectors = allSectors().filter((sector) => appConfig.sectorIds.includes(sector.id));
   const assets = allAssets().filter((asset) => appConfig.assetTickers.includes(asset.ticker));
   return {
     sectors,
@@ -1042,7 +1120,7 @@ function scoreBars(item) {
 
 function renderMetrics() {
   const sectors = filteredSectors();
-  const assets = filteredAssets();
+  const assets = filteredAssets().map(scoredAsset);
   const avg = (items, key) =>
     Math.round(items.reduce((sum, item) => sum + (Number(item[key]) || 0), 0) / items.length || 0);
   const metrics = [
@@ -1109,7 +1187,7 @@ function renderAlerts() {
 }
 
 function renderPositionTable() {
-  const assets = filteredAssets();
+  const assets = filteredAssets().map(scoredAsset);
   document.querySelector("#positionTable").innerHTML =
     assets
       .map(
@@ -1130,7 +1208,7 @@ function renderPositionTable() {
 }
 
 function renderWatchlist() {
-  const assets = filteredAssets();
+  const assets = filteredAssets().map(scoredAsset);
   document.querySelector("#watchGrid").innerHTML =
     assets
       .map(
@@ -1195,7 +1273,7 @@ function remoteAssetSearchResults(query) {
 function searchCatalog(query) {
   const q = normalize(query);
   if (!q) return [];
-  const sectors = [...sectorCatalog, ...appConfig.customSectors]
+  const sectors = allSectors()
     .filter((sector) => sectorMatchesQuery(sector, q))
     .map((sector) => {
       const profile = sectorProfile(sector);
@@ -1319,7 +1397,7 @@ async function fetchRemoteAssetSearch(query, requestId) {
 }
 
 function addSector(id) {
-  const sector = [...sectorCatalog, ...appConfig.customSectors].find((item) => item.id === id);
+  const sector = allSectors().find((item) => item.id === id);
   if (!sector) return;
   if (!appConfig.sectorIds.includes(id)) {
     appConfig.sectorIds.push(id);
@@ -1343,15 +1421,14 @@ function addAsset(ticker) {
     }
   }
   if (!asset) return;
-  const linkedSector = [...sectorCatalog, ...appConfig.customSectors].find(
-    (sector) => sector.name === asset.sector,
-  );
+  const linkedSector = allSectors().find((sector) => sector.name === asset.sector);
   if (linkedSector && !appConfig.sectorIds.includes(linkedSector.id)) {
     appConfig.sectorIds.push(linkedSector.id);
   }
   if (!appConfig.assetTickers.includes(ticker)) {
     appConfig.assetTickers.push(ticker);
     persistConfig(`已添加标的：${asset.name}`);
+    ensureAssetIntelligence(asset, { force: true });
   } else {
     showToast(`已在关注池：${asset.name}`);
   }
@@ -1360,6 +1437,21 @@ function addAsset(ticker) {
 function removeSector(id) {
   appConfig.sectorIds = appConfig.sectorIds.filter((item) => item !== id);
   persistConfig("行业已移除");
+}
+
+function deleteSector(id) {
+  const sector = allSectors().find((item) => item.id === id);
+  if (!sector) return;
+  appConfig.sectorIds = appConfig.sectorIds.filter((item) => item !== id);
+  if (isCustomSector(id)) {
+    appConfig.customSectors = appConfig.customSectors.filter((item) => item.id !== id);
+  } else {
+    appConfig.deletedSectorIds = uniqBy([...(appConfig.deletedSectorIds || []), id], (item) => item);
+  }
+  if (uiState.graphFocus === id) {
+    uiState.graphFocus = appConfig.sectorIds[0] || allSectors()[0]?.id || "ai_compute";
+  }
+  persistConfig(`已删除行业：${sector.name}`);
 }
 
 function removeAsset(ticker) {
@@ -1583,7 +1675,67 @@ function drawGraph() {
 }
 
 function assetSentiment(asset) {
+  if (Number.isFinite(Number(asset.sentiment))) return Number(asset.sentiment);
   return Math.max(42, Math.round((asset.impact + asset.trend - asset.risk) / 2));
+}
+
+function scoredAsset(asset) {
+  const cached = intelligenceCache.get(asset.ticker);
+  if (!cached || cached.status !== "ok") return asset;
+  const snapshot = cached.snapshot;
+  const scores = snapshot.scores || {};
+  const events = (snapshot.events || []).slice(0, 5).map((event) => [
+    event.source_published_at ? String(event.source_published_at).slice(5, 10) : event.event_type || "事件",
+    event.title || "真实事件",
+  ]);
+  return {
+    ...asset,
+    impact: Number(scores.impact ?? asset.impact),
+    trend: Number(scores.trend ?? asset.trend),
+    sentiment: Number(scores.sentiment ?? assetSentiment(asset)),
+    risk: Number(scores.risk ?? asset.risk),
+    state: snapshot.position_state?.current_state || asset.state,
+    evidence: `${snapshot.score_source || "real_signal"} · ${snapshot.source_status?.market_data || "data"}`,
+    events: events.length ? events : asset.events,
+    intelligence: snapshot,
+  };
+}
+
+function ensureAssetIntelligence(asset, options = {}) {
+  if (!asset?.ticker) return;
+  const cached = intelligenceCache.get(asset.ticker);
+  if (!options.force && cached && ["loading", "ok"].includes(cached.status)) return;
+  intelligenceCache.set(asset.ticker, { status: "loading" });
+  const params = new URLSearchParams({
+    name: asset.name || "",
+    sector: asset.sector || "",
+    days: String(options.days || 90),
+    include_news: "true",
+    include_disclosures: "true",
+  });
+  apiGet(`/api/assets/${encodeURIComponent(asset.ticker)}/intelligence?${params.toString()}`)
+    .then((snapshot) => {
+      intelligenceCache.set(asset.ticker, { status: "ok", snapshot });
+    })
+    .catch((error) => {
+      intelligenceCache.set(asset.ticker, { status: "error", error: error.message });
+    })
+    .finally(() => renderAll());
+}
+
+function intelligenceNote(asset) {
+  const cached = intelligenceCache.get(asset.ticker);
+  if (!cached) return "点击详情后自动拉取真实行情、新闻、公告和财报事件，并生成可追溯评分。";
+  if (cached.status === "loading") return "正在生成真实数据评分闭环...";
+  if (cached.status === "error") return `真实评分暂不可用：${cached.error}`;
+  const snapshot = cached.snapshot;
+  const status = snapshot.source_status || {};
+  const primaryFailed = (status.errors || []).some((error) => error.source === "akshare_market_data");
+  const errors = status.errors?.length ? `；部分源失败 ${status.errors.length} 项` : "";
+  const fallback = primaryFailed && status.market_data === "sina_a_share_market_data" ? "（AkShare 主源失败，已切换新浪 A 股备用源）" : "";
+  return `真实评分来源：${snapshot.score_source}；事件 ${status.event_count || 0} 条；信号 ${
+    status.signal_count || 0
+  } 条；行情 ${status.market_data || "unknown"}${fallback}${errors}`;
 }
 
 function chipList(items, emptyText = "待补充") {
@@ -1640,6 +1792,14 @@ function detailSectorFallback(asset) {
 }
 
 function assetAnalysis(asset, sector, profile) {
+  if (asset.intelligence) {
+    const status = asset.intelligence.source_status || {};
+    return `${asset.name} 当前已基于真实数据闭环生成评分：事件 ${status.event_count || 0} 条、信号 ${
+      status.signal_count || 0
+    } 条，行情来源 ${status.market_data || "unknown"}。当前状态为「${
+      asset.state
+    }」，评分来自行情、新闻、公告或财报事件的结构化证据，并可追溯到 Event / Signal；以上仅作为研究线索和风险提示，不构成投资建议。`;
+  }
   const pressure =
     asset.risk >= 65
       ? "风险评分处于较高区间，应优先关注负面事件、监管变化、业绩兑现和流动性扰动。"
@@ -1845,7 +2005,9 @@ function drawKlineChart(canvas) {
       ? `Real OHLCV · ${cached.source}`
       : cached?.status === "loading"
         ? "Loading real OHLCV..."
-        : "Demo fallback · MarketDataProvider unavailable";
+        : asset.market === "US"
+          ? "US market data adapter pending"
+          : "Demo fallback · Real provider unavailable";
   ctx.fillText(sourceLabel, left, rect.height - 14);
 }
 
@@ -1903,6 +2065,8 @@ function renderSectorDetail(sector) {
 }
 
 function renderAssetDetail(asset) {
+  ensureAssetIntelligence(asset);
+  asset = scoredAsset(asset);
   const sector = findSectorByName(asset.sector) || detailSectorFallback(asset);
   const profile = sectorProfile(sector);
   const events = asset.events || [];
@@ -1941,6 +2105,7 @@ function renderAssetDetail(asset) {
         </div>
         <canvas class="kline-chart" data-ticker="${esc(asset.ticker)}" width="900" height="360" aria-label="${esc(asset.name)} K线图"></canvas>
         <p class="graph-source">优先调用 MarketDataProvider / AkShare 真实行情；不可用时使用本地演示数据兜底。</p>
+        <p class="graph-source">${esc(intelligenceNote(asset))}</p>
       </div>
 
       <aside class="panel detail-section">
@@ -2007,7 +2172,7 @@ function renderConfigPane() {
 }
 
 function renderSectorConfig() {
-  const catalogItems = [...sectorCatalog, ...appConfig.customSectors];
+  const catalogItems = allSectors();
   return `
     <div class="config-grid">
       <form class="config-form" id="sectorForm">
@@ -2040,7 +2205,10 @@ function renderSectorConfig() {
                   <strong>${esc(sector.name)}</strong>
                   <span>${horizonLabel(profile.horizon)} · ${esc(profile.upstream.slice(0, 2).join(" / "))} → ${esc(profile.downstream.slice(0, 2).join(" / "))}</span>
                 </div>
-                <button class="text-button" data-action="${added ? "remove-sector" : "add-sector"}" data-id="${esc(sector.id)}">${added ? "移除" : "添加"}</button>
+                <div class="item-actions">
+                  <button class="text-button" data-action="${added ? "remove-sector" : "add-sector"}" data-id="${esc(sector.id)}">${added ? "移除" : "添加"}</button>
+                  <button class="text-button danger" data-action="delete-sector" data-id="${esc(sector.id)}">删除</button>
+                </div>
               </article>
             `;
           })
@@ -2358,12 +2526,16 @@ async function assistSectorForm(form) {
     return;
   }
   const { provider, result } = await requestLlmAssistance("sector", { name });
+  upsertValidatedAssets(result.validatedAssets, name);
   if (!form.elements.horizon.value) form.elements.horizon.value = result.horizon || "medium";
   form.elements.driver.value = form.elements.driver.value || result.driver || "";
   form.elements.indicators.value = form.elements.indicators.value || (result.indicators || []).join("，");
   form.elements.upstream.value = form.elements.upstream.value || (result.upstream || []).join("，");
   form.elements.downstream.value = form.elements.downstream.value || (result.downstream || []).join("，");
-  form.elements.relatedTickers.value = form.elements.relatedTickers.value || (result.relatedTickers || []).join("，");
+  const relatedTickers = (result.relatedTickers || []).join("，");
+  if (relatedTickers) form.elements.relatedTickers.value = relatedTickers;
+  form.dataset.assistRisks = result.risks || "";
+  form.dataset.assistSource = provider;
   showToast(`${provider} 已生成行业画像草稿`);
 }
 
@@ -2384,6 +2556,7 @@ async function assistAssetForm(form) {
   form.elements.ticker.value = form.elements.ticker.value || result.ticker || "";
   form.elements.market.value = form.elements.market.value || result.market || "A-share";
   form.elements.sector.value = form.elements.sector.value || result.sector || "";
+  upsertValidatedAssets(result.validatedAssets, result.sector || form.elements.sector?.value || "待分类");
   showToast(`${provider} 已生成标的配置草稿`);
 }
 
@@ -2403,7 +2576,7 @@ function createSector(form) {
     sentiment: 50,
     risk: 45,
     driver: String(data.get("driver") || assist.driver || "用户自定义研究方向").trim(),
-    risks: assist.risks || "待补充",
+    risks: form.dataset.assistRisks || assist.risks || "待补充",
     indicators: listFromValue(data.get("indicators")).length
       ? listFromValue(data.get("indicators")).slice(0, 5)
       : assist.indicators.slice(0, 5),
@@ -2416,12 +2589,14 @@ function createSector(form) {
     relatedTickers: listFromValue(data.get("relatedTickers")).length
       ? listFromValue(data.get("relatedTickers")).slice(0, 80)
       : assist.relatedTickers.slice(0, 80),
-    source: "manual_or_llm_assist",
+    source: form.dataset.assistSource ? "deepseek_validated_assist" : "manual_or_llm_assist",
   };
   if (!sector.indicators.length) sector.indicators = ["政策", "订单", "价格"];
   appConfig.customSectors.push(sector);
   appConfig.sectorIds.push(id);
   uiState.graphFocus = id;
+  delete form.dataset.assistRisks;
+  delete form.dataset.assistSource;
   form.reset();
   persistConfig(`已创建行业：${name}`);
 }
@@ -2456,6 +2631,7 @@ function createAsset(form) {
   if (!appConfig.assetTickers.includes(ticker)) appConfig.assetTickers.push(ticker);
   form.reset();
   persistConfig(`已创建标的：${name}`);
+  ensureAssetIntelligence(asset, { force: true });
 }
 
 function createEmail(form) {
@@ -2560,8 +2736,9 @@ function bindEvents() {
   document.querySelector("#openConfigBtn").addEventListener("click", () => openConfig(uiState.configTab));
   document.querySelector("#refreshBtn").addEventListener("click", () => {
     currentData = buildData();
+    currentData.assets.slice(0, 12).forEach((asset) => ensureAssetIntelligence(asset, { force: true }));
     renderAll();
-    showToast("已刷新本地状态");
+    showToast("正在刷新真实情报评分");
   });
 
   document.querySelector("#configTabs").addEventListener("click", (event) => {
@@ -2600,6 +2777,7 @@ function bindEvents() {
     if (action === "back-detail") backFromDetail();
     if (action === "add-sector") addSector(id);
     if (action === "remove-sector") removeSector(id);
+    if (action === "delete-sector") deleteSector(id);
     if (action === "add-asset") addAsset(id);
     if (action === "remove-asset") removeAsset(id);
     if (action === "toggle-email") toggleEmail(id);

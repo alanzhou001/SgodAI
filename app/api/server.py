@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict, is_dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -34,6 +34,7 @@ from app.providers import (
 )
 from app.providers.akshare_provider import AkShareMarketDataProvider
 from app.providers.disclosure_provider import CombinedDisclosureProvider
+from app.services import AssetIntelligenceService, ConfigAssistService
 
 if load_dotenv is not None:
     load_dotenv()
@@ -56,7 +57,15 @@ def create_app() -> Any:
     def health() -> dict[str, Any]:
         return {
             "status": "ok",
-            "market_data": "akshare",
+            "market_data": {
+                "primary": "akshare_market_data",
+                "fallback": "sina_a_share_market_data",
+                "status": "primary_with_a_share_fallback",
+                "note": (
+                    "AkShare may fail when EastMoney endpoints are blocked by the current network; "
+                    "A-share OHLCV and quote can fall back to Sina. HK/US fallback adapters are pending."
+                ),
+            },
             "llm": "deepseek",
             "disclaimer": (
                 "不构成投资建议，不提供自动交易或确定性买卖指令。"
@@ -239,6 +248,60 @@ def create_app() -> Any:
             "events": [_to_json(event) for event in events],
         }
 
+    @app.post("/api/llm/config-assist")
+    def config_assist(payload: dict[str, Any]) -> dict[str, Any]:
+        kind = str(payload.get("kind") or "sector")
+        name = str(payload.get("name") or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="name is required")
+        service = ConfigAssistService(llm_provider=_deepseek_provider())
+        try:
+            if kind == "sector":
+                result = service.assist_sector(
+                    name,
+                    market_scope=[str(item) for item in payload.get("market_scope") or ["A-share", "HK"]],
+                )
+            elif kind == "asset":
+                result = service.assist_asset(name, payload)
+            else:
+                raise HTTPException(status_code=400, detail=f"unsupported assist kind: {kind}")
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {
+            "kind": kind,
+            "name": name,
+            "result": result,
+            "provider": result.get("provider"),
+            "model": result.get("model"),
+            "disclaimer": result.get("disclaimer", "不构成投资建议，不提供确定性买卖指令。"),
+        }
+
+    @app.get("/api/assets/{ticker}/intelligence")
+    def asset_intelligence(
+        ticker: str,
+        name: str | None = None,
+        sector: str | None = None,
+        days: int = 90,
+        include_news: bool = True,
+        include_disclosures: bool = True,
+    ) -> dict[str, Any]:
+        asset = _asset_from_ticker(ticker, name=name, sector=sector)
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(days=max(7, min(days, 365)))
+        try:
+            snapshot = AssetIntelligenceService().build_asset_snapshot(
+                asset,
+                since=start,
+                until=end,
+                include_news=include_news,
+                include_disclosures=include_disclosures,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return _to_json(snapshot)
+
     @app.post("/api/llm/event-summary")
     def event_summary(payload: dict[str, Any]) -> dict[str, Any]:
         provider = _deepseek_provider()
@@ -285,7 +348,12 @@ def _public_dir() -> Path:
     return Path(__file__).resolve().parents[2] / "public"
 
 
-def _asset_from_ticker(ticker: str, *, name: str | None = None) -> Asset:
+def _asset_from_ticker(
+    ticker: str,
+    *,
+    name: str | None = None,
+    sector: str | None = None,
+) -> Asset:
     market, symbol = normalize_market_ticker(ticker)
     return Asset(
         id=f"asset_{ticker.upper().replace('.', '_')}",
@@ -293,7 +361,9 @@ def _asset_from_ticker(ticker: str, *, name: str | None = None) -> Asset:
         name=name or symbol,
         market=market,
         asset_type="stock",
+        sector_id=f"sector_{_slug(sector)}" if sector else None,
         exchange=ticker.upper().split(".")[-1] if "." in ticker else None,
+        metadata={"sector": sector} if sector else {},
     )
 
 
@@ -301,6 +371,10 @@ def _parse_date(value: str | None) -> datetime | None:
     if not value:
         return None
     return datetime.fromisoformat(value)
+
+
+def _slug(value: str | None) -> str:
+    return "".join(ch if ch.isalnum() else "_" for ch in str(value or "").lower()).strip("_")
 
 
 def _rss_sources_from_config() -> list[RSSSource]:

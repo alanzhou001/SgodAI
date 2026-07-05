@@ -122,6 +122,30 @@ class OpenAICompatibleLLMProvider(LLMProvider):
             [event.id for event in events],
         )
 
+    def run_structured_task(
+        self,
+        task: str,
+        payload: dict[str, Any],
+        *,
+        evidence_refs: list[str] | None = None,
+        input_event_ids: list[str] | None = None,
+        required_output: dict[str, Any] | None = None,
+    ) -> GroundedAIOutput:
+        result = self._request_structured_result(
+            task,
+            payload,
+            required_output=required_output,
+        )
+        return GroundedAIOutput(
+            result=result,
+            evidence_refs=evidence_refs or [],
+            confidence=float(result.get("confidence", 0.5)),
+            risk_notes=list(result.get("risk_notes", [])),
+            input_event_ids=input_event_ids or [],
+            provider=self.provider_id,
+            model=self.model,
+        )
+
     def _run_task(
         self,
         task: str,
@@ -140,7 +164,21 @@ class OpenAICompatibleLLMProvider(LLMProvider):
             model=self.model,
         )
 
-    def _request_structured_result(self, task: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def _request_structured_result(
+        self,
+        task: str,
+        payload: dict[str, Any],
+        *,
+        required_output: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        output_schema = required_output or {
+            "summary": "string",
+            "key_points": ["string"],
+            "risks": ["string"],
+            "confidence": 0.0,
+            "risk_notes": ["string"],
+            "disclaimer": "不构成投资建议，不提供确定性买卖指令。",
+        }
         body = {
             "model": self.model,
             "temperature": 0.2,
@@ -160,14 +198,7 @@ class OpenAICompatibleLLMProvider(LLMProvider):
                         {
                             "task": task,
                             "payload": payload,
-                            "required_output": {
-                                "summary": "string",
-                                "key_points": ["string"],
-                                "risks": ["string"],
-                                "confidence": 0.0,
-                                "risk_notes": ["string"],
-                                "disclaimer": "不构成投资建议，不提供确定性买卖指令。",
-                            },
+                            "required_output": output_schema,
                         },
                         ensure_ascii=False,
                     ),
