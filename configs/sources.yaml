@@ -8,6 +8,117 @@ data_sources:
       - "A-share"
       - "HK"
     default_adjust: "qfq"
+    fallback_chain:
+      - "akshare_market_data"
+      - "sina_a_share_market_data"
+      - "tushare_market_data"
+      - "local_duckdb_market_store"
+      - "local_postgres_market_store"
+    reserved_providers:
+      tushare:
+        enabled: false
+        provider_id: "tushare_market_data"
+        api_key_env: "TUSHARE_TOKEN"
+        markets:
+          - "A-share"
+        use_cases:
+          - "daily_ohlcv"
+          - "financial_statements"
+          - "index_data"
+          - "corporate_actions"
+      duckdb:
+        enabled: false
+        provider_id: "duckdb_local_market_store"
+        database_path: "data/market.duckdb"
+        markets:
+          - "A-share"
+          - "HK"
+          - "US"
+        use_cases:
+          - "local_cache"
+          - "factor_research"
+          - "backtest_dataset"
+      postgresql:
+        enabled: false
+        provider_id: "postgres_market_store"
+        database_url_env: "SGODAI_MARKET_POSTGRES_URL"
+        use_cases:
+          - "team_deployment"
+          - "shared_signal_db"
+          - "pgvector_extension"
+      alpha_vantage:
+        enabled: false
+        provider_id: "alpha_vantage_market_data"
+        api_key_env: "ALPHA_VANTAGE_API_KEY"
+        markets:
+          - "US"
+          - "FX"
+          - "macro"
+        use_as: "us_market_auxiliary_check"
+      fmp:
+        enabled: false
+        provider_id: "fmp_market_data"
+        api_key_env: "FMP_API_KEY"
+        base_url: "https://financialmodelingprep.com/api"
+        markets:
+          - "US"
+          - "ETF"
+          - "macro"
+        use_as: "us_market_primary_or_cross_check"
+      yfinance:
+        enabled: false
+        provider_id: "yfinance_market_data"
+        markets:
+          - "US"
+          - "HK"
+          - "ETF"
+        use_as: "auxiliary_validation_only"
+      polygon:
+        enabled: false
+        provider_id: "polygon_market_data"
+        api_key_env: "POLYGON_API_KEY"
+        base_url: "https://api.polygon.io"
+        markets:
+          - "US"
+          - "options"
+          - "crypto"
+          - "FX"
+      intrinio:
+        enabled: false
+        provider_id: "intrinio_market_data"
+        api_key_env: "INTRINIO_API_KEY"
+        base_url: "https://api-v2.intrinio.com"
+        markets:
+          - "US"
+          - "global"
+      wind:
+        enabled: false
+        provider_id: "wind_terminal_data"
+        mode: "licensed_terminal_or_api"
+        api_key_env: "WIND_API_KEY"
+        use_cases:
+          - "institutional_market_data"
+          - "macro"
+          - "fund"
+          - "fixed_income"
+      choice:
+        enabled: false
+        provider_id: "choice_terminal_data"
+        mode: "licensed_terminal_or_api"
+        api_key_env: "CHOICE_API_KEY"
+        use_cases:
+          - "institutional_market_data"
+          - "fund"
+          - "macro"
+      ifind:
+        enabled: false
+        provider_id: "ifind_terminal_data"
+        mode: "licensed_terminal_or_api"
+        api_key_env: "IFIND_API_KEY"
+        use_cases:
+          - "institutional_market_data"
+          - "fund"
+          - "macro"
 
   announcement:
     provider: "combined_disclosure"
@@ -93,6 +204,46 @@ data_sources:
           - "2674" # 港股
           - "2675" # 研究报告
           - "2676" # 全球市场
+    reserved_providers:
+      finnhub:
+        enabled: false
+        provider_id: "finnhub_news"
+        api_key_env: "FINNHUB_API_KEY"
+        base_url: "https://finnhub.io/api/v1"
+        markets:
+          - "US"
+        use_cases:
+          - "company_news"
+          - "earnings_calendar"
+          - "market_news"
+      fmp_news:
+        enabled: false
+        provider_id: "fmp_news"
+        api_key_env: "FMP_API_KEY"
+        base_url: "https://financialmodelingprep.com/api"
+        markets:
+          - "US"
+        use_cases:
+          - "stock_news"
+          - "press_releases"
+          - "earnings_news"
+      chinese_finance_scraper:
+        enabled: false
+        provider_id: "chinese_finance_scraper"
+        mode: "non_official_scraping"
+        respect_robots_txt: true
+        request_interval_seconds: 3
+        max_pages_per_source_per_run: 20
+        sources:
+          - name: "eastmoney"
+            enabled: false
+          - name: "cls"
+            enabled: false
+          - name: "sina_finance"
+            enabled: false
+          - name: "stcn"
+            enabled: false
+        notes: "仅预留配置。正式启用前需要确认站点条款、robots、频率限制和版权边界。"
 
   financial_reports:
     provider: "combined_disclosure"
