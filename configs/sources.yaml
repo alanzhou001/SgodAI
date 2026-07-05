@@ -1,32 +1,41 @@
 data_sources:
   market_data:
     provider: "akshare"
-    enabled: false
+    enabled: true
     api_key_env: null
     refresh_interval_minutes: 15
-
-  announcement:
-    provider: "exchange_adapter"
-    enabled: false
     markets:
       - "A-share"
       - "HK"
-      - "US"
+    default_adjust: "qfq"
+
+  announcement:
+    provider: "akshare_disclosure"
+    enabled: true
+    markets:
+      - "A-share"
+      - "HK"
 
   news:
     provider: "rss"
     enabled: true
     sources:
       - name: "caixin"
+        url: ""
         weight: 0.9
       - name: "cls"
+        url: ""
         weight: 0.8
       - name: "reuters"
+        url: ""
         weight: 0.95
 
   financial_reports:
-    provider: "filing_adapter"
-    enabled: false
+    provider: "akshare_disclosure"
+    enabled: true
+    markets:
+      - "A-share"
+      - "HK"
 
   policy:
     provider: "policy_rss"
@@ -39,4 +48,3 @@ data_sources:
   sentiment:
     provider: "custom"
     enabled: false
-

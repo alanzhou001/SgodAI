@@ -1,16 +1,16 @@
 llm:
   enabled: true
-  default_provider: "openai_compatible"
+  default_provider: "deepseek"
 
   providers:
     openai_compatible:
-      enabled: true
+      enabled: false
       base_url: "https://api.openai.com/v1"
       api_key_env: "OPENAI_API_KEY"
       model: "gpt-4.1"
 
     deepseek:
-      enabled: false
+      enabled: true
       base_url: "https://api.deepseek.com/v1"
       api_key_env: "DEEPSEEK_API_KEY"
       model: "deepseek-chat"
@@ -31,4 +31,3 @@ output_policy:
   require_confidence: true
   require_risk_notes: true
   require_disclaimer: true
-

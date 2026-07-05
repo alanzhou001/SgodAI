@@ -52,6 +52,51 @@ The demo is dependency-free and optimized for Safari/macOS style interaction. It
 python3 -m unittest discover -s tests
 ```
 
+## Real Data + DeepSeek Setup
+
+The first real-data profile is DeepSeek + AkShare + RSS, focused on A-share and HK equities.
+
+1. Create a local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Fill at least:
+
+```bash
+DEEPSEEK_API_KEY=sk-...
+```
+
+2. Install optional real-data dependencies:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[realdata]"
+```
+
+3. Review local config:
+
+- LLM: [configs/llm.yaml](configs/llm.yaml)
+- Data sources: [configs/sources.yaml](configs/sources.yaml)
+- Watchlist: [configs/watchlist.yaml](configs/watchlist.yaml)
+
+4. Start the local API:
+
+```bash
+uvicorn app.api.server:app --host 127.0.0.1 --port 8000
+```
+
+5. Quick checks:
+
+```bash
+curl http://127.0.0.1:8000/api/health
+curl "http://127.0.0.1:8000/api/assets/688525.SH/ohlcv"
+```
+
+RSS news sources in `configs/sources.yaml` intentionally require explicit URLs. Use licensed or public RSS endpoints you are allowed to access.
+
 ## Publish To GitHub
 
 After GitHub CLI authentication is valid:

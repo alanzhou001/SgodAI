@@ -8,12 +8,16 @@ watchlists:
       - "存储芯片"
       - "半导体设备"
       - "创新药"
+      - "储能"
     tickers:
       - "688525.SH"
       - "603986.SH"
-      - "NVDA.US"
-      - "TSM.US"
+      - "688041.SH"
+      - "002371.SZ"
+      - "300750.SZ"
+      - "600276.SH"
+      - "2269.HK"
+      - "6160.HK"
     alert_threshold:
       impact_score: 70
       risk_score: 60
-
