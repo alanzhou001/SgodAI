@@ -6,6 +6,21 @@ It is not a news feed, stock-tipping product, or automated trading system.
 
 > Disclaimer: This system does not constitute investment advice. It does not provide automated trading, direct buy/sell instructions, or return guarantees. All outputs are for research leads, information organization, risk awareness, and decision support only.
 
+## License
+
+SgodAI Market Radar is licensed under the Business Source License 1.1
+(`BUSL-1.1`) starting from versions released after this license change. The
+source is available for personal, non-commercial research, academic research,
+internal evaluation, development, testing, and demonstration. Commercial
+production use, hosted services, managed services, paid research platforms,
+investment advisory services, commercial data products, or competing commercial
+offerings require a separate commercial license from the licensor.
+
+The Change Date is `2030-07-06`. On that date, or earlier if required by the
+Business Source License 1.1 terms for a specific version, the licensed work
+changes to the MIT License. Earlier releases remain available under the license
+terms that applied to those releases.
+
 ## What Is Included
 
 - Product PRD: [docs/PRD.md](docs/PRD.md)
