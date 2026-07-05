@@ -14,9 +14,11 @@ except ImportError:  # pragma: no cover - optional dependency in realdata profil
 
 try:
     from fastapi import FastAPI, HTTPException
+    from fastapi.staticfiles import StaticFiles
 except ImportError:  # pragma: no cover - exercised only before optional deps are installed
     FastAPI = None  # type: ignore
     HTTPException = RuntimeError  # type: ignore
+    StaticFiles = None  # type: ignore
 
 from app.llm.openai_compatible import OpenAICompatibleLLMProvider
 from app.models import Asset, Event
@@ -186,6 +188,10 @@ def create_app() -> Any:
             "model": output.model,
         }
 
+    public_dir = _public_dir()
+    if StaticFiles is not None and public_dir.exists():
+        app.mount("/", StaticFiles(directory=public_dir, html=True), name="public")
+
     return app
 
 
@@ -196,6 +202,10 @@ def _deepseek_provider() -> OpenAICompatibleLLMProvider:
         model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"),
         api_key_env="DEEPSEEK_API_KEY",
     )
+
+
+def _public_dir() -> Path:
+    return Path(__file__).resolve().parents[2] / "public"
 
 
 def _asset_from_ticker(ticker: str, *, name: str | None = None) -> Asset:
