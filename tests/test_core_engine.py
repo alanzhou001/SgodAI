@@ -4,7 +4,8 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 from app.db import SQLiteSignalStore
-from app.models import Event, PositionState
+from app.models import DeliveryLog, EmailTarget, Event, PositionState
+from app.notifications import EmailNotificationProvider
 from app.reports import ReportComposer
 from app.scoring import ScoringEngine
 from app.services import AssetIntelligenceService, ConfigAssistService, PositionWindowEngine
@@ -94,6 +95,28 @@ class FakeAssetSearchProvider:
                 }
             ]
         return []
+
+
+class FakeSMTP:
+    sent_messages = []
+
+    def __init__(self, host, port, timeout=None):  # noqa: ANN001
+        self.host = host
+        self.port = port
+        self.timeout = timeout
+
+    def __enter__(self):  # noqa: ANN204
+        return self
+
+    def __exit__(self, exc_type, exc, tb):  # noqa: ANN001
+        return False
+
+    def login(self, username, password):  # noqa: ANN001
+        self.username = username
+        self.password = password
+
+    def send_message(self, message):  # noqa: ANN001
+        self.sent_messages.append(message)
 
 
 class CoreEngineTest(TestCase):
@@ -232,6 +255,64 @@ class CoreEngineTest(TestCase):
             self.assertEqual(store.counts()["signals"], 1)
             self.assertEqual(store.counts()["position_window_states"], 1)
             self.assertEqual(store.recent_events()[0]["asset_ids"], ["asset_600519_SH"])
+
+    def test_sqlite_store_persists_delivery_logs(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            store = SQLiteSignalStore(Path(tmpdir) / "signals.sqlite")
+            log = DeliveryLog(
+                id="delivery_unit",
+                target_id="email_unit",
+                channel="email",
+                status="success",
+                sent_at=datetime.now(timezone.utc),
+            )
+
+            store.save_delivery_log(log)
+
+            self.assertEqual(store.counts()["delivery_logs"], 1)
+            self.assertEqual(store.recent_delivery_logs()[0]["id"], "delivery_unit")
+
+    def test_email_provider_sends_with_configured_smtp(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        FakeSMTP.sent_messages = []
+        env = {
+            "SMTP_HOST": "smtp.qq.com",
+            "SMTP_PORT": "465",
+            "SMTP_USE_SSL": "true",
+            "SMTP_USERNAME": "sender@qq.com",
+            "SMTP_PASSWORD": "auth-code",
+            "SMTP_FROM": "sender@qq.com",
+            "SMTP_FROM_NAME": "SgodAI",
+        }
+        target = EmailTarget(
+            id="email_unit",
+            name="Unit",
+            address_or_endpoint="receiver@example.com",
+        )
+
+        with patch.dict(os.environ, env, clear=False):
+            log = EmailNotificationProvider(smtp_factory=FakeSMTP).send_test(target)
+
+        self.assertEqual(log.status, "success")
+        self.assertEqual(len(FakeSMTP.sent_messages), 1)
+        self.assertEqual(FakeSMTP.sent_messages[0]["To"], "receiver@example.com")
+
+    def test_email_provider_reports_missing_smtp_config(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        target = EmailTarget(
+            id="email_unit",
+            name="Unit",
+            address_or_endpoint="receiver@example.com",
+        )
+        with patch.dict(os.environ, {"SMTP_USERNAME": "", "SMTP_PASSWORD": "", "SMTP_FROM": ""}, clear=False):
+            log = EmailNotificationProvider(smtp_factory=FakeSMTP).send_test(target)
+
+        self.assertEqual(log.status, "failed")
+        self.assertIn("SMTP", log.error_message or "")
 
     def test_config_assist_validates_llm_candidate_assets(self) -> None:
         service = ConfigAssistService(

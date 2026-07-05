@@ -22,6 +22,9 @@ class ApiServerTest(TestCase):
         self.assertIn("/api/providers/registry", paths)
         self.assertIn("/api/db/status", paths)
         self.assertIn("/api/db/recent", paths)
+        self.assertIn("/api/notifications/email/config", paths)
+        self.assertIn("/api/notifications/email/test", paths)
+        self.assertIn("/api/notifications/delivery-logs", paths)
         self.assertIn("/api/llm/config-assist", paths)
         self.assertIn("", paths)
 

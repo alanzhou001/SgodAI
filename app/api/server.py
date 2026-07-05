@@ -24,7 +24,8 @@ except ImportError:  # pragma: no cover - exercised only before optional deps ar
 
 from app.db import SQLiteSignalStore
 from app.llm.openai_compatible import OpenAICompatibleLLMProvider
-from app.models import Asset, Event
+from app.models import Asset, EmailTarget, Event
+from app.notifications import EmailNotificationProvider
 from app.providers import (
     PublicAssetSearchProvider,
     RSSNewsProvider,
@@ -312,6 +313,48 @@ def create_app() -> Any:
             "position_window_states": store.recent_position_states(safe_limit),
         }
 
+    @app.get("/api/notifications/email/config")
+    def email_config_status() -> dict[str, Any]:
+        provider = EmailNotificationProvider()
+        missing = [
+            key
+            for key, value in {
+                "SMTP_HOST": provider.host,
+                "SMTP_USERNAME": provider.username,
+                "SMTP_PASSWORD": provider.password,
+                "SMTP_FROM": provider.sender,
+            }.items()
+            if not value
+        ]
+        return {
+            "provider": provider.provider_id,
+            "host": provider.host,
+            "port": provider.port,
+            "use_ssl": provider.use_ssl,
+            "from": provider.sender,
+            "configured": not missing,
+            "missing": missing,
+        }
+
+    @app.post("/api/notifications/email/test")
+    def send_test_email(payload: dict[str, Any]) -> dict[str, Any]:
+        target = _email_target_from_payload(payload)
+        provider = EmailNotificationProvider()
+        store = SQLiteSignalStore()
+        log = store.save_delivery_log(provider.send_test(target))
+        return {
+            "target": _to_json(target),
+            "delivery_log": _to_json(log),
+            "success": log.status == "success",
+        }
+
+    @app.get("/api/notifications/delivery-logs")
+    def delivery_logs(limit: int = 50) -> dict[str, Any]:
+        store = SQLiteSignalStore()
+        return {
+            "logs": store.recent_delivery_logs(limit),
+        }
+
     @app.post("/api/llm/event-summary")
     def event_summary(payload: dict[str, Any]) -> dict[str, Any]:
         provider = _deepseek_provider()
@@ -382,6 +425,27 @@ def _asset_from_ticker(
         sector_id=f"sector_{_slug(sector)}" if sector else None,
         exchange=ticker.upper().split(".")[-1] if "." in ticker else None,
         metadata={"sector": sector} if sector else {},
+    )
+
+
+def _email_target_from_payload(payload: dict[str, Any]) -> EmailTarget:
+    address = str(payload.get("address") or payload.get("address_or_endpoint") or "").strip()
+    name = str(payload.get("name") or "Email Target").strip()
+    if not address:
+        raise HTTPException(status_code=400, detail="address is required")
+    return EmailTarget(
+        id=str(payload.get("id") or f"email_{_slug(address)}"),
+        name=name,
+        address_or_endpoint=address,
+        enabled=bool(payload.get("enabled", True)),
+        report_types=[str(item) for item in payload.get("reportTypes") or payload.get("report_types") or []],
+        sectors=[str(item) for item in payload.get("sectors") or []],
+        tickers=[str(item) for item in payload.get("tickers") or []],
+        frequency=str(payload.get("frequency") or "manual"),
+        alert_threshold={
+            "impact_score": int(payload.get("impactThreshold") or 70),
+            "risk_score": int(payload.get("riskThreshold") or 60),
+        },
     )
 
 

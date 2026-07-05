@@ -2521,10 +2521,13 @@ function renderEmailConfig() {
               <article class="config-item">
                 <div>
                   <strong>${esc(email.name)}</strong>
-                  <span>${esc(email.address)} · ${email.reportTypes.map(esc).join(" / ")}</span>
+                  <span>${esc(email.address)} · ${email.reportTypes.map(esc).join(" / ")}${
+                    email.lastSendStatus ? ` · ${esc(email.lastSendStatus)}` : ""
+                  }</span>
                 </div>
                 <div class="item-actions">
                   <button class="toggle-button ${email.enabled ? "on" : ""}" data-action="toggle-email" data-id="${esc(email.id)}"></button>
+                  <button class="text-button" data-action="test-email" data-id="${esc(email.id)}">测试</button>
                   <button class="text-button danger" data-action="delete-email" data-id="${esc(email.id)}">删除</button>
                 </div>
               </article>
@@ -2888,6 +2891,28 @@ function createEmail(form) {
   persistConfig(`已添加邮箱：${target.name}`);
 }
 
+async function sendTestEmail(id, button = null) {
+  const target = appConfig.emailTargets.find((email) => email.id === id);
+  if (!target) return;
+  setButtonLoading(button, true, "发送中");
+  try {
+    const result = await apiPost("/api/notifications/email/test", target);
+    if (result.success) {
+      target.lastSendStatus = "success";
+      target.lastSentAt = result.delivery_log?.sent_at || new Date().toISOString();
+      persistConfig(`测试邮件已发送：${target.address}`);
+    } else {
+      target.lastSendStatus = "failed";
+      persistConfig("测试邮件发送失败");
+      showToast(result.delivery_log?.error_message || "测试邮件发送失败，请检查 SMTP 配置");
+    }
+  } catch (error) {
+    showToast(`测试邮件发送失败：${error.message}`);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
 function createLlm(form) {
   const data = new FormData(form);
   const name = String(data.get("name") || "").trim();
@@ -3053,6 +3078,7 @@ function bindEvents() {
     if (action === "remove-asset") removeAsset(id);
     if (action === "delete-asset") deleteAsset(id);
     if (action === "toggle-email") toggleEmail(id);
+    if (action === "test-email") sendTestEmail(id, button);
     if (action === "delete-email") deleteEmail(id);
     if (action === "toggle-provider") toggleProvider(id);
     if (action === "toggle-llm") toggleLlm(id);

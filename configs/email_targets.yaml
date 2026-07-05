@@ -1,3 +1,15 @@
+email_provider:
+  provider: "qq_smtp"
+  enabled: false
+  host_env: "SMTP_HOST"
+  port_env: "SMTP_PORT"
+  use_ssl_env: "SMTP_USE_SSL"
+  username_env: "SMTP_USERNAME"
+  password_env: "SMTP_PASSWORD"
+  from_env: "SMTP_FROM"
+  from_name_env: "SMTP_FROM_NAME"
+  note: "QQ 邮箱需开启 SMTP 服务，并使用授权码作为 SMTP_PASSWORD。"
+
 email_targets:
   - id: "email_001"
     name: "Main Inbox"
@@ -39,4 +51,3 @@ email_targets:
       risk_score: 65
     last_send_status: null
     last_sent_at: null
-

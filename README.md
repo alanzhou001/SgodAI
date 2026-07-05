@@ -112,6 +112,32 @@ Default public-source coverage:
 Public sources are suitable for MVP research workflows, not hard real-time or SLA-bound production.
 If a paid/authorized data API becomes necessary, add it as a new provider behind the same local API.
 
+## QQ Mail SMTP Setup
+
+The MVP email channel uses QQ Mail SMTP by default.
+
+1. Open QQ Mail settings and enable SMTP service.
+2. Generate an SMTP authorization code.
+3. Fill `.env`:
+
+```bash
+SMTP_HOST=smtp.qq.com
+SMTP_PORT=465
+SMTP_USE_SSL=true
+SMTP_USERNAME=your_qq_mail@qq.com
+SMTP_PASSWORD=your_qq_mail_smtp_authorization_code
+SMTP_FROM=your_qq_mail@qq.com
+SMTP_FROM_NAME=SgodAI Market Radar
+```
+
+Do not use your QQ login password as `SMTP_PASSWORD`; use the SMTP authorization code.
+
+After starting the local API, use the email settings page to send a test email, or call:
+
+```bash
+curl http://127.0.0.1:8000/api/notifications/email/config
+```
+
 ## Publish To GitHub
 
 After GitHub CLI authentication is valid:

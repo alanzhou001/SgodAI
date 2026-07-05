@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from contextlib import closing, contextmanager
 from dataclasses import asdict
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
-from app.models import Event, PositionWindowState, Signal
+from app.models import DeliveryLog, Event, PositionWindowState, Signal
 from app.settings import settings
 
 
@@ -23,7 +24,7 @@ class SQLiteSignalStore:
         self.initialize()
 
     def initialize(self) -> None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS events (
@@ -80,6 +81,21 @@ class SQLiteSignalStore:
                 CREATE INDEX IF NOT EXISTS idx_signals_created_at ON signals(created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_signals_event_id ON signals(event_id);
                 CREATE INDEX IF NOT EXISTS idx_pws_asset_created ON position_window_states(asset_id, created_at DESC);
+
+                CREATE TABLE IF NOT EXISTS delivery_logs (
+                    id TEXT PRIMARY KEY,
+                    target_id TEXT NOT NULL,
+                    channel TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    report_id TEXT,
+                    alert_id TEXT,
+                    retry_count INTEGER NOT NULL,
+                    error_message TEXT,
+                    sent_at TEXT
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_delivery_logs_sent_at ON delivery_logs(sent_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_delivery_logs_target ON delivery_logs(target_id, sent_at DESC);
                 """
             )
 
@@ -105,7 +121,7 @@ class SQLiteSignalStore:
             )
             for event in events
         ]
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.executemany(
                 """
                 INSERT OR REPLACE INTO events (
@@ -136,7 +152,7 @@ class SQLiteSignalStore:
             )
             for signal in signals
         ]
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.executemany(
                 """
                 INSERT OR REPLACE INTO signals (
@@ -167,7 +183,7 @@ class SQLiteSignalStore:
             )
             for state in states
         ]
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.executemany(
                 """
                 INSERT OR REPLACE INTO position_window_states (
@@ -204,18 +220,45 @@ class SQLiteSignalStore:
     def recent_position_states(self, limit: int = 50) -> list[dict[str, Any]]:
         return self._recent("position_window_states", limit)
 
+    def save_delivery_log(self, log: DeliveryLog) -> DeliveryLog:
+        with self._connection() as connection:
+            connection.execute(
+                """
+                INSERT OR REPLACE INTO delivery_logs (
+                    id, target_id, channel, status, report_id, alert_id,
+                    retry_count, error_message, sent_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    log.id,
+                    log.target_id,
+                    log.channel,
+                    log.status,
+                    log.report_id,
+                    log.alert_id,
+                    log.retry_count,
+                    log.error_message,
+                    _dt(log.sent_at),
+                ),
+            )
+        return log
+
+    def recent_delivery_logs(self, limit: int = 50) -> list[dict[str, Any]]:
+        return self._recent("delivery_logs", limit)
+
     def counts(self) -> dict[str, int]:
-        with self._connect() as connection:
+        with self._connection() as connection:
             return {
                 table: int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
-                for table in ("events", "signals", "position_window_states")
+                for table in ("events", "signals", "position_window_states", "delivery_logs")
             }
 
     def _recent(self, table: str, limit: int) -> list[dict[str, Any]]:
         safe_limit = max(1, min(int(limit), 500))
-        with self._connect() as connection:
+        order_column = "sent_at" if table == "delivery_logs" else "created_at"
+        with self._connection() as connection:
             rows = connection.execute(
-                f"SELECT * FROM {table} ORDER BY created_at DESC LIMIT ?",
+                f"SELECT * FROM {table} ORDER BY {order_column} DESC LIMIT ?",
                 (safe_limit,),
             ).fetchall()
         return [_decode_row(dict(row)) for row in rows]
@@ -224,6 +267,12 @@ class SQLiteSignalStore:
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
         return connection
+
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        with closing(self._connect()) as connection:
+            with connection:
+                yield connection
 
 
 def _dt(value: datetime | None) -> str | None:
