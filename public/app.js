@@ -626,6 +626,8 @@ const uiState = {
   },
 };
 
+const commandHiddenViews = new Set(["graph", "settings"]);
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -2046,6 +2048,16 @@ function renderAll() {
   renderGraphOnly();
 }
 
+function updateCommandCenterVisibility(viewId) {
+  const commandCenter = document.querySelector(".command-center");
+  if (!commandCenter) return;
+  const shouldHide = commandHiddenViews.has(viewId);
+  commandCenter.hidden = shouldHide;
+  commandCenter.classList.toggle("is-hidden", shouldHide);
+  commandCenter.setAttribute("aria-hidden", shouldHide ? "true" : "false");
+  if (shouldHide) setSearchResultsVisible(document.querySelector("#searchResults"), false);
+}
+
 function switchView(viewId) {
   uiState.activeView = viewId;
   if (viewId !== "detail") {
@@ -2059,6 +2071,7 @@ function switchView(viewId) {
   document.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("active", view.id === viewId);
   });
+  updateCommandCenterVisibility(viewId);
   if (viewId === "graph") renderGraphOnly();
   if (viewId === "detail") renderDetailView();
 }
@@ -2416,6 +2429,7 @@ function bindEvents() {
 async function boot() {
   bindEvents();
   renderAll();
+  updateCommandCenterVisibility(uiState.activeView);
   setInterval(() => {
     document.querySelector("#clock").textContent = new Date().toLocaleTimeString("zh-CN", {
       hour: "2-digit",

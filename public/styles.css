@@ -186,6 +186,11 @@ input,
   gap: 10px;
 }
 
+.command-center[hidden],
+.command-center.is-hidden {
+  display: none !important;
+}
+
 .search-shell {
   position: relative;
   display: grid;
