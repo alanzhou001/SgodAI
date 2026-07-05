@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+from typing import Any
+
+
+def provider_registry() -> dict[str, list[dict[str, Any]]]:
+    return {
+        "market_data": [
+            {
+                "id": "akshare_market_data",
+                "name": "AkShare Market Data",
+                "status": "active",
+                "markets": ["A-share", "HK", "US"],
+                "auth": "none",
+                "notes": "当前主行情适配器，受上游公开接口与网络可用性影响。",
+            },
+            {
+                "id": "sina_a_share_market_data",
+                "name": "Sina A-share Fallback",
+                "status": "active",
+                "markets": ["A-share"],
+                "auth": "none",
+                "notes": "A股实时/历史行情兜底接口。",
+            },
+            {
+                "id": "tushare_market_data",
+                "name": "Tushare Pro",
+                "status": "reserved",
+                "markets": ["A-share"],
+                "auth": "api_key",
+                "notes": "适合补全稳定日线、财务和指数数据，可能需要积分或付费权限。",
+            },
+            {
+                "id": "jqdata_market_data",
+                "name": "JoinQuant/JQData",
+                "status": "reserved",
+                "markets": ["A-share"],
+                "auth": "api_key",
+                "notes": "适合机构级 A 股行情、行业和因子数据接入。",
+            },
+            {
+                "id": "longport_market_data",
+                "name": "LongPort OpenAPI",
+                "status": "reserved",
+                "markets": ["HK", "US"],
+                "auth": "api_key",
+                "notes": "后续可作为港股/美股行情与标的资料来源。",
+            },
+            {
+                "id": "futu_openapi_market_data",
+                "name": "Futu OpenAPI",
+                "status": "reserved",
+                "markets": ["HK", "US", "A-share"],
+                "auth": "local_gateway",
+                "notes": "需要本地 OpenD，适合实时行情增强。",
+            },
+            {
+                "id": "local_csv_market_data",
+                "name": "Local CSV/Excel Import",
+                "status": "reserved",
+                "markets": ["A-share", "HK", "US", "custom"],
+                "auth": "local_file",
+                "notes": "Local-first 手动导入通道。",
+            },
+        ],
+        "information": [
+            {
+                "id": "rss_news",
+                "name": "RSS News",
+                "status": "active",
+                "types": ["news"],
+                "auth": "none",
+                "notes": "适合低成本新闻同步，不保证秒级实时。",
+            },
+            {
+                "id": "sina_finance_rollnews",
+                "name": "Sina Finance Roll News",
+                "status": "active",
+                "types": ["news"],
+                "auth": "none",
+                "notes": "当前新闻兜底适配器。",
+            },
+            {
+                "id": "cninfo_disclosure",
+                "name": "CNINFO Disclosure",
+                "status": "active",
+                "types": ["announcement", "financial_report"],
+                "auth": "none",
+                "notes": "A股公告与财报披露来源。",
+            },
+            {
+                "id": "hkexnews_disclosure",
+                "name": "HKEXnews Disclosure",
+                "status": "active",
+                "types": ["announcement", "financial_report"],
+                "auth": "none",
+                "notes": "港股披露易公告/财报适配器首版。",
+            },
+            {
+                "id": "eastmoney_news",
+                "name": "Eastmoney News/Notice",
+                "status": "reserved",
+                "types": ["news", "announcement"],
+                "auth": "none_or_cookie",
+                "notes": "后续可补行业新闻、公告镜像和研报摘要。",
+            },
+            {
+                "id": "research_report_provider",
+                "name": "Research Report Provider",
+                "status": "reserved",
+                "types": ["research_report"],
+                "auth": "licensed_api",
+                "notes": "研报通常涉及授权，接入前需要确认数据许可。",
+            },
+            {
+                "id": "policy_rss_provider",
+                "name": "Policy RSS/Web Adapter",
+                "status": "reserved",
+                "types": ["policy"],
+                "auth": "none",
+                "notes": "用于监管、部委、交易所政策事件同步。",
+            },
+            {
+                "id": "mcp_finance_provider",
+                "name": "MCP Finance Provider",
+                "status": "reserved",
+                "types": ["market_data", "news", "knowledge_graph"],
+                "auth": "tool_config",
+                "notes": "预留 MCP 工具接入方式。",
+            },
+        ],
+    }

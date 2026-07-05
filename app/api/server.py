@@ -22,6 +22,7 @@ except ImportError:  # pragma: no cover - exercised only before optional deps ar
     CORSMiddleware = None  # type: ignore
     StaticFiles = None  # type: ignore
 
+from app.db import SQLiteSignalStore
 from app.llm.openai_compatible import OpenAICompatibleLLMProvider
 from app.models import Asset, Event
 from app.providers import (
@@ -31,6 +32,7 @@ from app.providers import (
     SinaAShareMarketDataProvider,
     SinaFinanceNewsProvider,
     normalize_market_ticker,
+    provider_registry,
 )
 from app.providers.akshare_provider import AkShareMarketDataProvider
 from app.providers.disclosure_provider import CombinedDisclosureProvider
@@ -89,6 +91,13 @@ def create_app() -> Any:
             "results": results,
             "source": provider.provider_id,
             "errors": provider.last_errors,
+        }
+
+    @app.get("/api/providers/registry")
+    def providers_registry() -> dict[str, Any]:
+        return {
+            "providers": provider_registry(),
+            "principle": "Core Engine provider interfaces are swappable; paid or licensed providers stay disabled until configured.",
         }
 
     @app.get("/api/assets/{ticker}/quote")
@@ -291,7 +300,8 @@ def create_app() -> Any:
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=max(7, min(days, 365)))
         try:
-            snapshot = AssetIntelligenceService().build_asset_snapshot(
+            store = SQLiteSignalStore()
+            snapshot = AssetIntelligenceService(signal_store=store).build_asset_snapshot(
                 asset,
                 since=start,
                 until=end,
@@ -301,6 +311,27 @@ def create_app() -> Any:
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         return _to_json(snapshot)
+
+    @app.get("/api/db/status")
+    def db_status() -> dict[str, Any]:
+        store = SQLiteSignalStore()
+        return {
+            "path": str(store.path),
+            "counts": store.counts(),
+            "local_first": True,
+            "tables": ["events", "signals", "position_window_states"],
+        }
+
+    @app.get("/api/db/recent")
+    def db_recent(limit: int = 50) -> dict[str, Any]:
+        store = SQLiteSignalStore()
+        safe_limit = max(1, min(limit, 500))
+        return {
+            "path": str(store.path),
+            "events": store.recent_events(safe_limit),
+            "signals": store.recent_signals(safe_limit),
+            "position_window_states": store.recent_position_states(safe_limit),
+        }
 
     @app.post("/api/llm/event-summary")
     def event_summary(payload: dict[str, Any]) -> dict[str, Any]:

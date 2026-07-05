@@ -518,6 +518,7 @@ const industryAssistProfiles = [
 const defaultConfig = {
   sectorIds: ["ai_compute", "hbm", "memory", "biotech", "low_altitude", "copper"],
   deletedSectorIds: [],
+  deletedAssetTickers: [],
   assetTickers: ["688525.SH", "603986.SH", "NVDA.US", "300750.SZ"],
   customSectors: [],
   customAssets: [],
@@ -731,7 +732,10 @@ function uniqBy(items, keyFn) {
 }
 
 function allAssets() {
-  return uniqBy([...appConfig.customAssets, ...assetUniverse], (asset) => asset.ticker);
+  const deleted = new Set((appConfig.deletedAssetTickers || []).map((ticker) => String(ticker).toUpperCase()));
+  return uniqBy([...appConfig.customAssets, ...assetUniverse], (asset) => asset.ticker).filter(
+    (asset) => !deleted.has(String(asset.ticker).toUpperCase()),
+  );
 }
 
 function allSectors() {
@@ -741,6 +745,10 @@ function allSectors() {
 
 function isCustomSector(id) {
   return appConfig.customSectors.some((sector) => sector.id === id);
+}
+
+function isCustomAsset(ticker) {
+  return appConfig.customAssets.some((asset) => asset.ticker === ticker);
 }
 
 function findSectorById(id) {
@@ -991,6 +999,7 @@ function loadConfig() {
       providers: parsed.providers || clone(defaultConfig.providers),
       emailTargets: parsed.emailTargets || clone(defaultConfig.emailTargets),
       deletedSectorIds: parsed.deletedSectorIds || [],
+      deletedAssetTickers: parsed.deletedAssetTickers || [],
       customSectors: parsed.customSectors || [],
       customAssets: parsed.customAssets || [],
     };
@@ -1457,6 +1466,21 @@ function deleteSector(id) {
 function removeAsset(ticker) {
   appConfig.assetTickers = appConfig.assetTickers.filter((item) => item !== ticker);
   persistConfig("标的已移除");
+}
+
+function deleteAsset(ticker) {
+  const asset = allAssets().find((item) => item.ticker === ticker);
+  if (!asset) return;
+  appConfig.assetTickers = appConfig.assetTickers.filter((item) => item !== ticker);
+  if (isCustomAsset(ticker)) {
+    appConfig.customAssets = appConfig.customAssets.filter((item) => item.ticker !== ticker);
+  } else {
+    appConfig.deletedAssetTickers = uniqBy(
+      [...(appConfig.deletedAssetTickers || []), ticker.toUpperCase()],
+      (item) => item,
+    );
+  }
+  persistConfig(`已删除标的：${asset.name}`);
 }
 
 function toggleEmail(id) {
@@ -2168,7 +2192,6 @@ function renderConfigPane() {
     providers: renderProviderConfig,
   };
   pane.innerHTML = renderers[uiState.configTab]();
-  renderConfigPreview();
 }
 
 function renderSectorConfig() {
@@ -2221,24 +2244,25 @@ function renderSectorConfig() {
 function renderAssetConfig() {
   const catalogItems = allAssets();
   return `
-    <div class="config-grid">
-      <form class="config-form" id="assetForm">
+    <div class="asset-config-layout">
+      <form class="config-form compact-config-form" id="assetForm">
         <h3>新增关注标的</h3>
-        <div class="form-row two">
+        <div class="form-row asset-form-row">
           <label>名称<input name="name" required placeholder="例如：中芯国际"></label>
           <label>代码<input name="ticker" placeholder="例如：688981.SH"></label>
-        </div>
-        <div class="form-row two">
           <label>市场<select name="market"><option value="">自动</option><option>A-share</option><option>HK</option><option>US</option><option>ETF</option></select></label>
           <label>行业<input name="sector" placeholder="例如：半导体设备"></label>
-        </div>
-        <div class="form-actions">
-          <button class="primary-button" type="submit">添加标的</button>
-          <button class="text-button" type="button" data-action="assist-asset-form">AI 补全</button>
+          <div class="form-actions asset-form-actions">
+            <button class="primary-button" type="submit">添加标的</button>
+            <button class="text-button" type="button" data-action="assist-asset-form">AI 补全</button>
+          </div>
         </div>
       </form>
-      <div class="config-list">
-        <h3>可选标的</h3>
+      <div class="config-list asset-config-list">
+        <div class="config-list-head">
+          <h3>可选标的</h3>
+          <span>${catalogItems.length} 个</span>
+        </div>
         ${catalogItems
           .map((asset) => {
             const added = appConfig.assetTickers.includes(asset.ticker);
@@ -2248,7 +2272,10 @@ function renderAssetConfig() {
                   <strong>${esc(asset.name)} · ${esc(asset.ticker)}</strong>
                   <span>${esc(asset.market)} · ${esc(asset.sector)} · Risk ${esc(asset.risk)}</span>
                 </div>
-                <button class="text-button" data-action="${added ? "remove-asset" : "add-asset"}" data-id="${esc(asset.ticker)}">${added ? "移除" : "添加"}</button>
+                <div class="item-actions">
+                  <button class="text-button" data-action="${added ? "remove-asset" : "add-asset"}" data-id="${esc(asset.ticker)}">${added ? "移除" : "添加"}</button>
+                  <button class="text-button danger" data-action="delete-asset" data-id="${esc(asset.ticker)}">删除</button>
+                </div>
               </article>
             `;
           })
@@ -2393,33 +2420,6 @@ function renderProviderConfig() {
       </div>
     </div>
   `;
-}
-
-function renderConfigPreview() {
-  const preview = document.querySelector("#configPreview");
-  if (!preview) return;
-  preview.textContent = JSON.stringify(
-    {
-      watchlist: {
-        sectors: currentData.sectors.map((sector) => sector.name),
-        tickers: appConfig.assetTickers,
-      },
-      knowledge_graph: currentData.sectors.map((sector) => {
-        const profile = sectorProfile(sector);
-        return {
-          sector: sector.name,
-          upstream: profile.upstream,
-          downstream: profile.downstream,
-          related_tickers: profile.relatedTickers,
-        };
-      }),
-      email_targets: appConfig.emailTargets,
-      llm: appConfig.llm,
-      data_sources: appConfig.providers,
-    },
-    null,
-    2,
-  );
 }
 
 function renderGraphOnly() {
@@ -2703,19 +2703,6 @@ function updateInlineInput(input) {
   persistConfig("配置已更新");
 }
 
-function exportConfig() {
-  const blob = new Blob([document.querySelector("#configPreview").textContent], {
-    type: "application/json;charset=utf-8",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "sgodai-config.json";
-  link.click();
-  URL.revokeObjectURL(url);
-  showToast("配置已导出");
-}
-
 function bindEvents() {
   document.querySelector("#commandSearch").addEventListener("input", (event) => {
     uiState.query = event.target.value;
@@ -2760,7 +2747,6 @@ function bindEvents() {
     renderGraphOnly();
   });
   document.querySelector("#graphTraceBtn").addEventListener("click", renderGraphOnly);
-  document.querySelector("#exportConfigBtn").addEventListener("click", exportConfig);
 
   document.addEventListener("click", (event) => {
     const openTarget = event.target.closest("[data-open-config]");
@@ -2780,6 +2766,7 @@ function bindEvents() {
     if (action === "delete-sector") deleteSector(id);
     if (action === "add-asset") addAsset(id);
     if (action === "remove-asset") removeAsset(id);
+    if (action === "delete-asset") deleteAsset(id);
     if (action === "toggle-email") toggleEmail(id);
     if (action === "delete-email") deleteEmail(id);
     if (action === "toggle-provider") toggleProvider(id);

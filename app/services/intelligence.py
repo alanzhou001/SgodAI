@@ -4,6 +4,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.db import SQLiteSignalStore
 from app.models import Asset, Event, PositionState, Signal
 from app.providers import (
     CombinedDisclosureProvider,
@@ -28,6 +29,7 @@ class AssetIntelligenceService:
         disclosure_provider: Any | None = None,
         scoring_engine: ScoringEngine | None = None,
         position_engine: PositionWindowEngine | None = None,
+        signal_store: SQLiteSignalStore | None = None,
     ) -> None:
         self.market_provider = market_provider or AkShareMarketDataProvider()
         self.market_fallback_provider = market_fallback_provider or SinaAShareMarketDataProvider()
@@ -35,6 +37,7 @@ class AssetIntelligenceService:
         self.disclosure_provider = disclosure_provider or CombinedDisclosureProvider()
         self.scoring_engine = scoring_engine or ScoringEngine()
         self.position_engine = position_engine or PositionWindowEngine()
+        self.signal_store = signal_store
 
     def build_asset_snapshot(
         self,
@@ -67,6 +70,7 @@ class AssetIntelligenceService:
             signals,
             previous_state=PositionState.WATCH,
         )
+        persistence = self._persist(events, signals, position_state)
         return {
             "asset": asset,
             "events": events,
@@ -80,8 +84,24 @@ class AssetIntelligenceService:
                 "signal_count": len(signals),
                 "errors": errors,
             },
+            "persistence": persistence,
             "generated_at": datetime.now(timezone.utc),
             "disclaimer": "仅作为研究线索、信息整理和风险提示，不构成投资建议或买卖指令。",
+        }
+
+    def _persist(
+        self,
+        events: list[Event],
+        signals: list[Signal],
+        position_state: Any,
+    ) -> dict[str, Any]:
+        if self.signal_store is None:
+            return {"enabled": False}
+        counts = self.signal_store.save_snapshot(events, signals, [position_state])
+        return {
+            "enabled": True,
+            "store": str(self.signal_store.path),
+            "counts": counts,
         }
 
     def _fetch_ohlcv(

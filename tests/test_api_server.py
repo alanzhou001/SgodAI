@@ -18,5 +18,8 @@ class ApiServerTest(TestCase):
         self.assertIn("/api/assets/search", paths)
         self.assertIn("/api/assets/{ticker}/quote", paths)
         self.assertIn("/api/assets/{ticker}/intelligence", paths)
+        self.assertIn("/api/providers/registry", paths)
+        self.assertIn("/api/db/status", paths)
+        self.assertIn("/api/db/recent", paths)
         self.assertIn("/api/llm/config-assist", paths)
         self.assertIn("", paths)

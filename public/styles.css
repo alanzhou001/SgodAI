@@ -870,12 +870,11 @@ td span {
 
 .settings-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  grid-template-columns: 1fr;
   gap: 18px;
 }
 
-.config-panel,
-.config-preview-panel {
+.config-panel {
   align-self: start;
 }
 
@@ -887,6 +886,28 @@ td span {
   display: grid;
   grid-template-columns: minmax(260px, 0.82fr) minmax(320px, 1.18fr);
   gap: 14px;
+}
+
+.asset-config-layout {
+  display: grid;
+  gap: 14px;
+}
+
+.compact-config-form {
+  align-content: start;
+}
+
+.asset-form-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.1fr) minmax(130px, 0.85fr) minmax(120px, 0.7fr) minmax(150px, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.asset-form-actions {
+  align-self: end;
+  flex-wrap: nowrap;
+  min-width: max-content;
 }
 
 .config-form,
@@ -962,6 +983,22 @@ td span {
   align-content: start;
 }
 
+.config-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.config-list-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.asset-config-list {
+  max-width: 100%;
+}
+
 .config-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1035,20 +1072,6 @@ td span {
 
 .toggle-button.on::after {
   transform: translateX(16px);
-}
-
-.config-preview {
-  min-height: 520px;
-  max-height: 72vh;
-  overflow: auto;
-  margin: 0;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-strong);
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
 }
 
 .empty-state,
@@ -1151,6 +1174,14 @@ td span {
   .config-grid,
   .detail-layout {
     grid-template-columns: 1fr;
+  }
+
+  .asset-form-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .asset-form-actions {
+    grid-column: 1 / -1;
   }
 
   .sector-matrix,

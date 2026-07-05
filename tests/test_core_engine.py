@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest import TestCase
 
+from app.db import SQLiteSignalStore
 from app.models import Event, PositionState
 from app.reports import ReportComposer
 from app.scoring import ScoringEngine
@@ -202,6 +205,33 @@ class CoreEngineTest(TestCase):
         self.assertEqual(len(snapshot["signals"]), 1)
         self.assertIn(snapshot["signals"][0].id, snapshot["position_state"].triggered_by_signal_ids)
         self.assertGreater(snapshot["scores"]["impact"], 50)
+
+    def test_asset_intelligence_persists_traceable_outputs(self) -> None:
+        from app.models import Asset
+
+        with TemporaryDirectory() as tmpdir:
+            store = SQLiteSignalStore(Path(tmpdir) / "signals.sqlite")
+            service = AssetIntelligenceService(
+                market_provider=FakeMarketProvider(),
+                news_provider=EmptyNewsProvider(),
+                disclosure_provider=EmptyDisclosureProvider(),
+                signal_store=store,
+            )
+            asset = Asset(
+                id="asset_600519_SH",
+                ticker="600519.SH",
+                name="贵州茅台",
+                market="A-share",
+                asset_type="stock",
+            )
+
+            snapshot = service.build_asset_snapshot(asset, include_news=True, include_disclosures=True)
+
+            self.assertTrue(snapshot["persistence"]["enabled"])
+            self.assertEqual(store.counts()["events"], 1)
+            self.assertEqual(store.counts()["signals"], 1)
+            self.assertEqual(store.counts()["position_window_states"], 1)
+            self.assertEqual(store.recent_events()[0]["asset_ids"], ["asset_600519_SH"])
 
     def test_config_assist_validates_llm_candidate_assets(self) -> None:
         service = ConfigAssistService(

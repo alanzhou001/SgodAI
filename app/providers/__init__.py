@@ -34,6 +34,7 @@ from app.providers.disclosure_provider import (
     HKEXNewsDisclosureProvider,
 )
 from app.providers.rss_provider import RSSNewsProvider, RSSSource
+from app.providers.registry import provider_registry
 from app.providers.sina_market_provider import SinaAShareMarketDataProvider, SinaMarketDataError
 from app.providers.sina_news_provider import SINA_FINANCE_LIDS, SinaFinanceNewsProvider
 
@@ -62,6 +63,7 @@ __all__ = [
     "RSSNewsProvider",
     "RSSSource",
     "ResearchReportProvider",
+    "provider_registry",
     "SINA_FINANCE_LIDS",
     "SentimentProvider",
     "SinaAShareMarketDataProvider",

@@ -1,2 +1,3 @@
-"""Database layer placeholder for SQLite and future PostgreSQL adapters."""
+from app.db.sqlite_store import SQLiteSignalStore
 
+__all__ = ["SQLiteSignalStore"]
