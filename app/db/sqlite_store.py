@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-from app.models import DeliveryLog, Event, PositionWindowState, Signal
+from app.models import DeliveryLog, Event, PositionWindowState, Report, Signal
 from app.settings import settings
 
 
@@ -96,6 +96,32 @@ class SQLiteSignalStore:
 
                 CREATE INDEX IF NOT EXISTS idx_delivery_logs_sent_at ON delivery_logs(sent_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_delivery_logs_target ON delivery_logs(target_id, sent_at DESC);
+
+                CREATE TABLE IF NOT EXISTS reports (
+                    id TEXT PRIMARY KEY,
+                    report_type TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    period_start TEXT NOT NULL,
+                    period_end TEXT NOT NULL,
+                    sections_json TEXT NOT NULL,
+                    event_ids_json TEXT NOT NULL,
+                    signal_ids_json TEXT NOT NULL,
+                    position_state_ids_json TEXT NOT NULL,
+                    generated_by TEXT NOT NULL,
+                    llm_provider_id TEXT,
+                    grounded INTEGER NOT NULL,
+                    disclaimer TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_reports_type_created ON reports(report_type, created_at DESC);
+
+                CREATE TABLE IF NOT EXISTS app_config (
+                    id TEXT PRIMARY KEY,
+                    payload_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 """
             )
 
@@ -246,16 +272,81 @@ class SQLiteSignalStore:
     def recent_delivery_logs(self, limit: int = 50) -> list[dict[str, Any]]:
         return self._recent("delivery_logs", limit)
 
+    def save_report(self, report: Report) -> Report:
+        with self._connection() as connection:
+            connection.execute(
+                """
+                INSERT OR REPLACE INTO reports (
+                    id, report_type, title, period_start, period_end, sections_json,
+                    event_ids_json, signal_ids_json, position_state_ids_json,
+                    generated_by, llm_provider_id, grounded, disclaimer, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    report.id,
+                    report.report_type,
+                    report.title,
+                    _dt(report.period_start),
+                    _dt(report.period_end),
+                    _json(report.sections),
+                    _json(report.event_ids),
+                    _json(report.signal_ids),
+                    _json(report.position_state_ids),
+                    report.generated_by,
+                    report.llm_provider_id,
+                    int(report.grounded),
+                    report.disclaimer,
+                    _dt(report.created_at),
+                ),
+            )
+        return report
+
+    def recent_reports(self, limit: int = 20) -> list[dict[str, Any]]:
+        return self._recent("reports", limit)
+
+    def save_app_config(self, payload: dict[str, Any], config_id: str = "default") -> dict[str, Any]:
+        updated_at = datetime.now().astimezone().isoformat()
+        with self._connection() as connection:
+            connection.execute(
+                """
+                INSERT OR REPLACE INTO app_config (id, payload_json, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (config_id, _json(payload), updated_at),
+            )
+        return {"id": config_id, "payload": payload, "updated_at": updated_at}
+
+    def get_app_config(self, config_id: str = "default") -> dict[str, Any] | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT id, payload_json, updated_at FROM app_config WHERE id = ?",
+                (config_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row["id"],
+            "payload": json.loads(row["payload_json"] or "{}"),
+            "updated_at": row["updated_at"],
+        }
+
     def counts(self) -> dict[str, int]:
         with self._connection() as connection:
             return {
                 table: int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
-                for table in ("events", "signals", "position_window_states", "delivery_logs")
+                for table in (
+                    "events",
+                    "signals",
+                    "position_window_states",
+                    "delivery_logs",
+                    "reports",
+                    "app_config",
+                )
             }
 
     def _recent(self, table: str, limit: int) -> list[dict[str, Any]]:
         safe_limit = max(1, min(int(limit), 500))
-        order_column = "sent_at" if table == "delivery_logs" else "created_at"
+        order_column = "sent_at" if table == "delivery_logs" else "updated_at" if table == "app_config" else "created_at"
         with self._connection() as connection:
             rows = connection.execute(
                 f"SELECT * FROM {table} ORDER BY {order_column} DESC LIMIT ?",

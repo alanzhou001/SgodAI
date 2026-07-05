@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SgodAI Market Radar</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css?v=20260705f" />
+    <link rel="stylesheet" href="./styles.css?v=20260706a" />
   </head>
   <body>
     <div class="shell">
@@ -63,6 +63,19 @@
 
         <section id="dashboard" class="view active">
           <div class="metrics-grid" id="metricsGrid"></div>
+
+          <section class="panel system-panel">
+            <div class="panel-head">
+              <h2>系统操作</h2>
+              <span id="systemStatusLabel">MVP 0.2</span>
+            </div>
+            <div class="panel-actions">
+              <button class="primary-button" data-action="run-health-check">一键健康检查</button>
+              <button class="text-button" data-action="generate-daily-report">生成日报</button>
+              <button class="text-button" data-action="generate-daily-report-email">生成并发送邮件</button>
+            </div>
+            <div id="systemOpsStatus" class="system-status-grid"></div>
+          </section>
 
           <section class="split">
             <div class="panel">
@@ -188,6 +201,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <script src="./app.js?v=20260705n"></script>
+    <script src="./app.js?v=20260706a"></script>
   </body>
 </html>

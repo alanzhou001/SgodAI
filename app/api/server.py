@@ -24,7 +24,7 @@ except ImportError:  # pragma: no cover - exercised only before optional deps ar
 
 from app.db import SQLiteSignalStore
 from app.llm.openai_compatible import OpenAICompatibleLLMProvider
-from app.models import Asset, EmailTarget, Event
+from app.models import Asset, EmailTarget, Event, PositionState, PositionWindowState, Report, Signal
 from app.notifications import EmailNotificationProvider
 from app.providers import (
     PublicAssetSearchProvider,
@@ -38,6 +38,7 @@ from app.providers import (
 )
 from app.providers.akshare_provider import AkShareMarketDataProvider
 from app.providers.disclosure_provider import CombinedDisclosureProvider
+from app.reports import ReportComposer
 from app.services import AssetIntelligenceService, ConfigAssistService
 
 if load_dotenv is not None:
@@ -48,7 +49,7 @@ def create_app() -> Any:
     if FastAPI is None:
         raise RuntimeError("FastAPI is not installed. Run `pip install -e .[realdata]`.")
 
-    app = FastAPI(title="SgodAI Market Radar API", version="0.1.0")
+    app = FastAPI(title="SgodAI Market Radar API", version="0.2.0")
     if CORSMiddleware is not None:
         app.add_middleware(
             CORSMiddleware,
@@ -100,6 +101,68 @@ def create_app() -> Any:
         return {
             "providers": provider_registry(),
             "principle": "Core Engine provider interfaces are swappable; paid or licensed providers stay disabled until configured.",
+        }
+
+    @app.get("/api/config")
+    def get_config() -> dict[str, Any]:
+        store = SQLiteSignalStore()
+        saved = store.get_app_config()
+        return {
+            "configured": saved is not None,
+            "config": saved["payload"] if saved else None,
+            "updated_at": saved["updated_at"] if saved else None,
+            "storage": {
+                "backend": "sqlite",
+                "path": str(store.path),
+                "local_first": True,
+            },
+        }
+
+    @app.post("/api/config")
+    def save_config(payload: dict[str, Any]) -> dict[str, Any]:
+        store = SQLiteSignalStore()
+        saved = store.save_app_config(payload)
+        return {
+            "success": True,
+            "updated_at": saved["updated_at"],
+            "storage": {
+                "backend": "sqlite",
+                "path": str(store.path),
+                "local_first": True,
+            },
+        }
+
+    @app.get("/api/system/health-check")
+    def system_health_check() -> dict[str, Any]:
+        store = SQLiteSignalStore()
+        email_status = _email_config_summary()
+        llm_status = _llm_config_summary()
+        registry = provider_registry()
+        return {
+            "status": "ok",
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "components": {
+                "api": {"status": "ok", "version": "0.2.0"},
+                "database": {
+                    "status": "ok",
+                    "path": str(store.path),
+                    "counts": store.counts(),
+                    "config_persisted": store.get_app_config() is not None,
+                },
+                "llm": llm_status,
+                "email": email_status,
+                "providers": {
+                    "status": "ok",
+                    "market_data": _provider_summary(registry.get("market_data", [])),
+                    "information": _provider_summary(registry.get("information", [])),
+                },
+            },
+            "actions": {
+                "manual_daily_report": "/api/reports/daily",
+                "test_email": "/api/notifications/email/test",
+                "provider_registry": "/api/providers/registry",
+            },
+            "disclaimer": "不构成投资建议，不提供自动交易或确定性买卖指令。",
         }
 
     @app.get("/api/assets/{ticker}/quote")
@@ -299,7 +362,7 @@ def create_app() -> Any:
             "path": str(store.path),
             "counts": store.counts(),
             "local_first": True,
-            "tables": ["events", "signals", "position_window_states"],
+            "tables": ["events", "signals", "position_window_states", "reports", "delivery_logs", "app_config"],
         }
 
     @app.get("/api/db/recent")
@@ -313,28 +376,40 @@ def create_app() -> Any:
             "position_window_states": store.recent_position_states(safe_limit),
         }
 
+    @app.post("/api/reports/daily")
+    def generate_daily_report(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        body = payload or {}
+        store = SQLiteSignalStore()
+        now = datetime.now(timezone.utc)
+        period_start = now - timedelta(days=int(body.get("days") or 1))
+        report = _compose_report_from_store(store, period_start=period_start, period_end=now)
+        store.save_report(report)
+        delivery_logs = []
+        if body.get("send_email"):
+            provider = EmailNotificationProvider()
+            for target_payload in body.get("email_targets") or []:
+                target = _email_target_from_payload(target_payload)
+                if not target.enabled:
+                    continue
+                delivery_logs.append(store.save_delivery_log(provider.send_report(target, report)))
+        return {
+            "success": True,
+            "report": _to_json(report),
+            "delivery_logs": [_to_json(log) for log in delivery_logs],
+            "storage": {"backend": "sqlite", "path": str(store.path)},
+        }
+
+    @app.get("/api/reports/recent")
+    def recent_reports(limit: int = 20) -> dict[str, Any]:
+        store = SQLiteSignalStore()
+        return {
+            "reports": store.recent_reports(limit),
+            "path": str(store.path),
+        }
+
     @app.get("/api/notifications/email/config")
     def email_config_status() -> dict[str, Any]:
-        provider = EmailNotificationProvider()
-        missing = [
-            key
-            for key, value in {
-                "SMTP_HOST": provider.host,
-                "SMTP_USERNAME": provider.username,
-                "SMTP_PASSWORD": provider.password,
-                "SMTP_FROM": provider.sender,
-            }.items()
-            if not value
-        ]
-        return {
-            "provider": provider.provider_id,
-            "host": provider.host,
-            "port": provider.port,
-            "use_ssl": provider.use_ssl,
-            "from": provider.sender,
-            "configured": not missing,
-            "missing": missing,
-        }
+        return _email_config_summary()
 
     @app.post("/api/notifications/email/test")
     def send_test_email(payload: dict[str, Any]) -> dict[str, Any]:
@@ -397,6 +472,127 @@ def _deepseek_provider() -> OpenAICompatibleLLMProvider:
     )
 
 
+def _compose_report_from_store(
+    store: SQLiteSignalStore,
+    *,
+    period_start: datetime,
+    period_end: datetime,
+) -> Report:
+    events = [_event_from_row(row) for row in store.recent_events(200)]
+    signals = [_signal_from_row(row) for row in store.recent_signals(200)]
+    states = [_position_state_from_row(row) for row in store.recent_position_states(200)]
+    return ReportComposer().compose_daily_report(
+        events=events,
+        signals=signals,
+        position_states=states,
+        period_start=period_start,
+        period_end=period_end,
+    )
+
+
+def _event_from_row(row: dict[str, Any]) -> Event:
+    return Event(
+        id=str(row["id"]),
+        title=str(row["title"]),
+        event_type=str(row["event_type"]),
+        source=str(row["source"]),
+        source_url=row.get("source_url"),
+        source_published_at=_parse_optional_datetime(row.get("source_published_at")),
+        received_at=_parse_optional_datetime(row.get("received_at")) or datetime.now(timezone.utc),
+        raw_content_ref=row.get("raw_content_ref"),
+        summary=row.get("summary"),
+        asset_ids=[str(item) for item in row.get("asset_ids") or []],
+        sector_ids=[str(item) for item in row.get("sector_ids") or []],
+        knowledge_node_ids=[str(item) for item in row.get("knowledge_node_ids") or []],
+        evidence=dict(row.get("evidence") or {}),
+        dedup_key=row.get("dedup_key"),
+        confidence=float(row.get("confidence") or 0),
+        created_at=_parse_optional_datetime(row.get("created_at")) or datetime.now(timezone.utc),
+    )
+
+
+def _signal_from_row(row: dict[str, Any]) -> Signal:
+    return Signal(
+        id=str(row["id"]),
+        event_id=str(row["event_id"]),
+        asset_id=row.get("asset_id"),
+        sector_id=row.get("sector_id"),
+        impact_score=int(row.get("impact_score") or 0),
+        trend_score=int(row.get("trend_score") or 0),
+        sentiment_score=int(row.get("sentiment_score") or 0),
+        risk_score=int(row.get("risk_score") or 0),
+        scoring_version=str(row.get("scoring_version") or "rules.v0"),
+        evidence=dict(row.get("evidence") or {}),
+        created_at=_parse_optional_datetime(row.get("created_at")) or datetime.now(timezone.utc),
+    )
+
+
+def _position_state_from_row(row: dict[str, Any]) -> PositionWindowState:
+    return PositionWindowState(
+        id=str(row["id"]),
+        asset_id=str(row["asset_id"]),
+        previous_state=PositionState(str(row.get("previous_state") or PositionState.WATCH.value)),
+        current_state=PositionState(str(row.get("current_state") or PositionState.WATCH.value)),
+        support_factors=[str(item) for item in row.get("support_factors") or []],
+        risk_factors=[str(item) for item in row.get("risk_factors") or []],
+        watch_variables=[str(item) for item in row.get("watch_variables") or []],
+        triggered_by_event_ids=[str(item) for item in row.get("triggered_by_event_ids") or []],
+        triggered_by_signal_ids=[str(item) for item in row.get("triggered_by_signal_ids") or []],
+        rule_version=str(row.get("rule_version") or "position.rules.v0"),
+        confidence=float(row.get("confidence") or 0),
+        disclaimer=str(row.get("disclaimer") or "不构成投资建议。"),
+        created_at=_parse_optional_datetime(row.get("created_at")) or datetime.now(timezone.utc),
+    )
+
+
+def _email_config_summary() -> dict[str, Any]:
+    provider = EmailNotificationProvider()
+    missing = [
+        key
+        for key, value in {
+            "SMTP_HOST": provider.host,
+            "SMTP_USERNAME": provider.username,
+            "SMTP_PASSWORD": provider.password,
+            "SMTP_FROM": provider.sender,
+        }.items()
+        if not value
+    ]
+    return {
+        "provider": provider.provider_id,
+        "status": "ok" if not missing else "needs_config",
+        "host": provider.host,
+        "port": provider.port,
+        "use_ssl": provider.use_ssl,
+        "from": provider.sender,
+        "configured": not missing,
+        "missing": missing,
+    }
+
+
+def _llm_config_summary() -> dict[str, Any]:
+    provider = _deepseek_provider()
+    configured = bool(os.getenv(provider.api_key_env or ""))
+    return {
+        "provider": provider.provider_id,
+        "status": "ok" if configured else "needs_config",
+        "base_url": provider.base_url,
+        "model": provider.model,
+        "api_key_env": provider.api_key_env,
+        "configured": configured,
+    }
+
+
+def _provider_summary(providers: list[dict[str, Any]]) -> dict[str, Any]:
+    active = [item for item in providers if str(item.get("status", "")).startswith("active")]
+    reserved = [item for item in providers if item.get("status") == "reserved"]
+    return {
+        "total": len(providers),
+        "active": len(active),
+        "reserved": len(reserved),
+        "items": providers,
+    }
+
+
 def _market_provider_chain() -> list[Any]:
     return [
         AkShareMarketDataProvider(),
@@ -453,6 +649,14 @@ def _parse_date(value: str | None) -> datetime | None:
     if not value:
         return None
     return datetime.fromisoformat(value)
+
+
+def _parse_optional_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
 
 
 def _slug(value: str | None) -> str:

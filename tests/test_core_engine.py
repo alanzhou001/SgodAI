@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 from app.db import SQLiteSignalStore
-from app.models import DeliveryLog, EmailTarget, Event, PositionState
+from app.models import DeliveryLog, EmailTarget, Event, PositionState, Report
 from app.notifications import EmailNotificationProvider
 from app.reports import ReportComposer
 from app.scoring import ScoringEngine
@@ -271,6 +271,31 @@ class CoreEngineTest(TestCase):
 
             self.assertEqual(store.counts()["delivery_logs"], 1)
             self.assertEqual(store.recent_delivery_logs()[0]["id"], "delivery_unit")
+
+    def test_sqlite_store_persists_backend_config_and_reports(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            store = SQLiteSignalStore(Path(tmpdir) / "signals.sqlite")
+            saved = store.save_app_config({"sectorIds": ["ai_compute"], "emailTargets": []})
+            now = datetime.now(timezone.utc)
+            report = Report(
+                id="rpt_unit",
+                report_type="daily",
+                title="Unit Daily",
+                period_start=now,
+                period_end=now,
+                sections={"market_overview": {"event_count": 0}},
+                event_ids=[],
+                signal_ids=[],
+                position_state_ids=[],
+            )
+
+            store.save_report(report)
+
+            self.assertEqual(saved["id"], "default")
+            self.assertEqual(store.get_app_config()["payload"]["sectorIds"], ["ai_compute"])
+            self.assertEqual(store.counts()["reports"], 1)
+            self.assertEqual(store.counts()["app_config"], 1)
+            self.assertEqual(store.recent_reports()[0]["id"], "rpt_unit")
 
     def test_email_provider_sends_with_configured_smtp(self) -> None:
         import os

@@ -52,6 +52,29 @@ The demo is dependency-free and optimized for Safari/macOS style interaction. It
 python3 -m unittest discover -s tests
 ```
 
+## Build macOS App
+
+SgodAI includes a native SwiftUI + WebKit macOS shell under
+`macos/SgodAI-Mac`. The app first connects to the local Core Engine at
+`http://127.0.0.1:8000/`; if the API is not running, it falls back to the
+bundled static frontend.
+
+Build with Xcode 27 beta when available:
+
+```bash
+scripts/build_macos_app.sh
+```
+
+The release artifact is generated at:
+
+```text
+dist/SgodAI-Market-Radar-macOS-v0.2.0.zip
+```
+
+This first macOS package is intentionally unsigned and not notarized. For wider
+distribution, add an Apple Developer Team ID and notarization step before
+publishing outside GitHub releases.
+
 ## Real Data + DeepSeek Setup
 
 The first real-data profile is DeepSeek + AkShare + RSSHub + CNINFO + HKEXnews,

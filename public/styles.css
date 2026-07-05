@@ -316,6 +316,54 @@ input,
   gap: 12px;
 }
 
+.system-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.system-status-card,
+.provider-status-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface-strong);
+}
+
+.system-status-card {
+  display: grid;
+  gap: 5px;
+}
+
+.system-status-card span,
+.provider-status-card span,
+.provider-status-card small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.system-status-card strong {
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.system-status-card small,
+.provider-status-card p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.system-status-card.ok {
+  border-color: color-mix(in srgb, var(--green) 34%, var(--line));
+}
+
+.system-status-card.warn {
+  border-color: color-mix(in srgb, var(--amber) 42%, var(--line));
+}
+
 .metric,
 .panel,
 .sector-card,
@@ -1105,6 +1153,46 @@ td span {
   gap: 8px;
 }
 
+.provider-status-wide {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 14px;
+}
+
+.provider-status-section {
+  display: grid;
+  gap: 10px;
+}
+
+.provider-status-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.provider-status-card {
+  display: grid;
+  gap: 7px;
+}
+
+.provider-status-card header {
+  display: grid;
+  gap: 3px;
+}
+
+.provider-status-card strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.provider-status-card.active {
+  border-color: color-mix(in srgb, var(--green) 30%, var(--line));
+}
+
+.provider-status-card.reserved {
+  border-style: dashed;
+}
+
 .toggle-button {
   position: relative;
   width: 40px;
@@ -1229,6 +1317,11 @@ td span {
 @media (max-width: 1080px) {
   .metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .system-status-grid,
+  .provider-status-list {
+    grid-template-columns: 1fr;
   }
 
   .split,

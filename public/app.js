@@ -614,6 +614,7 @@ const defaultConfig = {
 let appConfig = loadConfig();
 let currentData = buildData();
 let toastTimer = null;
+let backendConfigTimer = null;
 
 const uiState = {
   activeView: "dashboard",
@@ -633,6 +634,15 @@ const uiState = {
     items: [],
     errors: [],
     requestId: 0,
+  },
+  systemHealth: null,
+  systemHealthLoading: false,
+  lastReport: null,
+  reportLoading: false,
+  backendConfig: {
+    status: "local_only",
+    updatedAt: null,
+    error: null,
   },
 };
 
@@ -988,41 +998,80 @@ function upsertValidatedAssets(assets, sectorName) {
   });
 }
 
+function normalizeConfigPayload(parsed = {}) {
+  return {
+    ...clone(defaultConfig),
+    ...parsed,
+    llm: { ...clone(defaultConfig.llm), ...(parsed.llm || {}) },
+    providers: parsed.providers || clone(defaultConfig.providers),
+    emailTargets: parsed.emailTargets || clone(defaultConfig.emailTargets),
+    deletedSectorIds: parsed.deletedSectorIds || [],
+    deletedAssetTickers: parsed.deletedAssetTickers || [],
+    customSectors: parsed.customSectors || [],
+    customAssets: parsed.customAssets || [],
+  };
+}
+
 function loadConfig() {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (!stored) return clone(defaultConfig);
   try {
-    const parsed = JSON.parse(stored);
-    return {
-      ...clone(defaultConfig),
-      ...parsed,
-      llm: { ...clone(defaultConfig.llm), ...(parsed.llm || {}) },
-      providers: parsed.providers || clone(defaultConfig.providers),
-      emailTargets: parsed.emailTargets || clone(defaultConfig.emailTargets),
-      deletedSectorIds: parsed.deletedSectorIds || [],
-      deletedAssetTickers: parsed.deletedAssetTickers || [],
-      customSectors: parsed.customSectors || [],
-      customAssets: parsed.customAssets || [],
-    };
+    return normalizeConfigPayload(JSON.parse(stored));
   } catch {
     return clone(defaultConfig);
   }
+}
+
+async function syncConfigFromBackend() {
+  try {
+    const payload = await apiGet("/api/config");
+    if (payload.config) {
+      appConfig = normalizeConfigPayload(payload.config);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
+      currentData = buildData();
+      uiState.backendConfig = { status: "synced", updatedAt: payload.updated_at, error: null };
+      renderAll();
+      return;
+    }
+    await saveConfigToBackend({ silent: true });
+  } catch (error) {
+    uiState.backendConfig = { status: "local_only", updatedAt: null, error: error.message };
+    renderAll();
+  }
+}
+
+async function saveConfigToBackend({ silent = false } = {}) {
+  clearTimeout(backendConfigTimer);
+  backendConfigTimer = setTimeout(async () => {
+    try {
+      const result = await apiPost("/api/config", appConfig);
+      uiState.backendConfig = { status: "synced", updatedAt: result.updated_at, error: null };
+      flashSaveState("SQLite");
+      renderSystemOps();
+    } catch (error) {
+      uiState.backendConfig = { status: "local_only", updatedAt: null, error: error.message };
+      flashSaveState("Local only");
+      renderSystemOps();
+      if (!silent) console.info("SgodAI backend config sync skipped:", error.message);
+    }
+  }, 180);
 }
 
 function persistConfig(message = "已保存") {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
   currentData = buildData();
   renderAll();
-  flashSaveState();
+  flashSaveState("LocalStorage");
+  saveConfigToBackend();
   showToast(message);
 }
 
-function flashSaveState() {
+function flashSaveState(label = "Saved") {
   const target = document.querySelector("#saveState");
   if (!target) return;
-  target.textContent = "Saved";
+  target.textContent = label === "Saved" ? "Saved" : `${label} Saved`;
   setTimeout(() => {
-    target.textContent = "LocalStorage";
+    target.textContent = uiState.backendConfig.status === "synced" ? "SQLite + LocalStorage" : "LocalStorage";
   }, 1200);
 }
 
@@ -1191,6 +1240,89 @@ function renderMetrics() {
       `,
     )
     .join("");
+}
+
+function formatDateShort(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || "-");
+  return date.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function renderSystemOps() {
+  const container = document.querySelector("#systemOpsStatus");
+  if (!container) return;
+  const health = uiState.systemHealth;
+  const report = uiState.lastReport;
+  const db = health?.components?.database;
+  const email = health?.components?.email;
+  const llm = health?.components?.llm;
+  const providers = health?.components?.providers;
+  const configLabel =
+    uiState.backendConfig.status === "synced"
+      ? `SQLite 已同步${uiState.backendConfig.updatedAt ? ` · ${formatDateShort(uiState.backendConfig.updatedAt)}` : ""}`
+      : `本地配置兜底${uiState.backendConfig.error ? ` · ${uiState.backendConfig.error}` : ""}`;
+  const statusCards = [
+    {
+      title: "配置持久化",
+      value: uiState.backendConfig.status === "synced" ? "正常" : "本地",
+      note: configLabel,
+      tone: uiState.backendConfig.status === "synced" ? "ok" : "warn",
+    },
+    {
+      title: "数据库",
+      value: db?.status || "待检查",
+      note: db ? `${db.path} · Event ${db.counts?.events || 0} / Signal ${db.counts?.signals || 0}` : "点击健康检查读取 SQLite 状态",
+      tone: db?.status === "ok" ? "ok" : "idle",
+    },
+    {
+      title: "LLM",
+      value: llm?.configured ? "已配置" : "待配置",
+      note: llm ? `${llm.provider} · ${llm.model}` : "DeepSeek API Key 检查",
+      tone: llm?.configured ? "ok" : "warn",
+    },
+    {
+      title: "邮件",
+      value: email?.configured ? "可发送" : "待配置",
+      note: email ? `${email.host}:${email.port}${email.missing?.length ? ` · 缺 ${email.missing.join("/")}` : ""}` : "SMTP 配置检查",
+      tone: email?.configured ? "ok" : "warn",
+    },
+    {
+      title: "数据源",
+      value: providers ? `${providers.market_data.active}+${providers.information.active}` : "待检查",
+      note: providers
+        ? `行情 ${providers.market_data.total} 个 / 资讯 ${providers.information.total} 个，含预留接口`
+        : "点击健康检查读取 Provider Registry",
+      tone: providers ? "ok" : "idle",
+    },
+    {
+      title: "日报",
+      value: report?.success ? "已生成" : "待生成",
+      note: report?.report
+        ? `${report.report.title} · 事件 ${report.report.event_ids?.length || 0} / 信号 ${report.report.signal_ids?.length || 0}`
+        : "可手动生成，邮件发送会写入 DeliveryLog",
+      tone: report?.success ? "ok" : "idle",
+    },
+  ];
+  container.innerHTML = statusCards
+    .map(
+      (card) => `
+        <article class="system-status-card ${esc(card.tone)}">
+          <span>${esc(card.title)}</span>
+          <strong>${esc(card.value)}</strong>
+          <small>${esc(card.note)}</small>
+        </article>
+      `,
+    )
+    .join("");
+  const label = document.querySelector("#systemStatusLabel");
+  if (label) {
+    label.textContent = health?.checked_at ? `Checked ${formatDateShort(health.checked_at)}` : "MVP 0.2";
+  }
 }
 
 function renderSectorCards(target, boardMode = false) {
@@ -2580,6 +2712,37 @@ function renderLlmConfig() {
 }
 
 function renderProviderConfig() {
+  const providerHealth = uiState.systemHealth?.components?.providers;
+  const marketProviders = providerHealth?.market_data?.items || [];
+  const informationProviders = providerHealth?.information?.items || [];
+  const providerCards = (items, label) => `
+    <section class="provider-status-section">
+      <div class="config-list-head">
+        <h3>${esc(label)}</h3>
+        <span>${items.length ? `${items.length} providers` : "待健康检查"}</span>
+      </div>
+      <div class="provider-status-list">
+        ${
+          items.length
+            ? items
+                .map(
+                  (provider) => `
+                    <article class="provider-status-card ${provider.status === "reserved" ? "reserved" : "active"}">
+                      <header>
+                        <strong>${esc(provider.name)}</strong>
+                        <span>${esc(provider.status)} · auth ${esc(provider.auth || "none")}</span>
+                      </header>
+                      <p>${esc(provider.notes || "")}</p>
+                      <small>${esc((provider.markets || provider.types || []).join(" / "))}</small>
+                    </article>
+                  `,
+                )
+                .join("")
+            : `<div class="empty-inline">点击“刷新状态”读取后端 Provider Registry。</div>`
+        }
+      </div>
+    </section>
+  `;
   return `
     <div class="config-grid">
       <form class="config-form" id="providerForm">
@@ -2595,7 +2758,10 @@ function renderProviderConfig() {
         <button class="primary-button" type="submit">添加数据源</button>
       </form>
       <div class="config-list">
-        <h3>Provider 状态</h3>
+        <div class="config-list-head">
+          <h3>本地 Provider 配置</h3>
+          <button class="text-button" type="button" data-action="run-health-check">刷新状态</button>
+        </div>
         ${appConfig.providers
           .map(
             (provider) => `
@@ -2616,6 +2782,10 @@ function renderProviderConfig() {
           )
           .join("")}
       </div>
+      <div class="config-list provider-status-wide">
+        ${providerCards(marketProviders, "行情接口状态")}
+        ${providerCards(informationProviders, "资讯 / 公告 / 财报接口状态")}
+      </div>
     </div>
   `;
 }
@@ -2628,6 +2798,7 @@ function renderGraphOnly() {
 
 function renderAll() {
   renderMetrics();
+  renderSystemOps();
   renderSectorCards("#sectorMatrix");
   renderSectorCards("#radarBoard", true);
   renderAlerts();
@@ -2637,6 +2808,49 @@ function renderAll() {
   renderConfigPane();
   renderDetailView();
   renderGraphOnly();
+}
+
+async function runHealthCheck(button = null) {
+  uiState.systemHealthLoading = true;
+  setButtonLoading(button, true, "检查中");
+  renderSystemOps();
+  try {
+    const result = await apiGet("/api/system/health-check");
+    uiState.systemHealth = result;
+    showToast("健康检查完成");
+    renderAll();
+  } catch (error) {
+    showToast(`健康检查失败：${error.message}`);
+  } finally {
+    uiState.systemHealthLoading = false;
+    setButtonLoading(button, false);
+  }
+}
+
+async function generateDailyReport(sendEmail = false, button = null) {
+  uiState.reportLoading = true;
+  setButtonLoading(button, true, sendEmail ? "生成发送中" : "生成中");
+  renderSystemOps();
+  try {
+    const result = await apiPost("/api/reports/daily", {
+      days: 1,
+      send_email: sendEmail,
+      email_targets: appConfig.emailTargets.filter((target) => target.enabled),
+    });
+    uiState.lastReport = result;
+    const failed = (result.delivery_logs || []).filter((log) => log.status !== "success");
+    if (sendEmail && failed.length) {
+      showToast(`日报已生成，邮件失败 ${failed.length} 个`);
+    } else {
+      showToast(sendEmail ? "日报已生成并发送" : "日报已生成");
+    }
+    renderAll();
+  } catch (error) {
+    showToast(`日报生成失败：${error.message}`);
+  } finally {
+    uiState.reportLoading = false;
+    setButtonLoading(button, false);
+  }
 }
 
 function updateCommandCenterVisibility(viewId) {
@@ -3082,6 +3296,9 @@ function bindEvents() {
     if (action === "delete-email") deleteEmail(id);
     if (action === "toggle-provider") toggleProvider(id);
     if (action === "toggle-llm") toggleLlm(id);
+    if (action === "run-health-check") runHealthCheck(button);
+    if (action === "generate-daily-report") generateDailyReport(false, button);
+    if (action === "generate-daily-report-email") generateDailyReport(true, button);
     if (action === "assist-sector-form") assistSectorForm(button.closest("form"), button);
     if (action === "assist-asset-form") assistAssetForm(button.closest("form"), button);
     if (action === "set-default-llm") {
@@ -3136,6 +3353,7 @@ function bindEvents() {
 async function boot() {
   bindEvents();
   renderAll();
+  syncConfigFromBackend();
   updateCommandCenterVisibility(uiState.activeView);
   setInterval(() => {
     document.querySelector("#clock").textContent = new Date().toLocaleTimeString("zh-CN", {
