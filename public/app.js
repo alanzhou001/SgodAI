@@ -639,6 +639,12 @@ const uiState = {
   systemHealthLoading: false,
   lastReport: null,
   reportLoading: false,
+  reports: {
+    loading: false,
+    items: [],
+    selectedId: null,
+    error: null,
+  },
   backendConfig: {
     status: "local_only",
     updatedAt: null,
@@ -1323,6 +1329,117 @@ function renderSystemOps() {
   if (label) {
     label.textContent = health?.checked_at ? `Checked ${formatDateShort(health.checked_at)}` : "MVP 0.2";
   }
+}
+
+function reportTypeLabel(type) {
+  if (type === "weekly") return "周报";
+  if (type === "daily") return "日报";
+  return type || "报告";
+}
+
+function reportSummaryLine(report) {
+  const section = report.sections?.market_overview || {};
+  const eventCount = report.event_ids?.length ?? section.event_count ?? 0;
+  const signalCount = report.signal_ids?.length ?? section.signal_count ?? 0;
+  const stateCount = report.position_state_ids?.length ?? section.position_state_count ?? 0;
+  return `事件 ${eventCount} / 信号 ${signalCount} / 窗口 ${stateCount}`;
+}
+
+function selectedReport() {
+  return uiState.reports.items.find((report) => report.id === uiState.reports.selectedId) || uiState.reports.items[0] || null;
+}
+
+function renderReportCenter() {
+  const list = document.querySelector("#reportList");
+  const detail = document.querySelector("#reportDetail");
+  if (!list || !detail) return;
+  const status = document.querySelector("#reportCenterStatus");
+  if (status) {
+    status.textContent = uiState.reports.loading
+      ? "Loading"
+      : uiState.reports.error
+        ? "同步失败"
+        : `${uiState.reports.items.length} reports`;
+  }
+
+  if (uiState.reports.loading && !uiState.reports.items.length) {
+    list.innerHTML = `<div class="empty-inline">正在读取本地报告库...</div>`;
+    detail.innerHTML = `<div class="empty-inline">请选择一份报告查看详情。</div>`;
+    return;
+  }
+
+  if (!uiState.reports.items.length) {
+    list.innerHTML = `<div class="empty-inline">暂无报告。点击“生成日报”或“生成周报”后会在这里查看。</div>`;
+    detail.innerHTML = `<div class="empty-inline">报告会保存在 SQLite，不只用于邮件发送。</div>`;
+    return;
+  }
+
+  const active = selectedReport();
+  list.innerHTML = uiState.reports.items
+    .map(
+      (report) => `
+        <button class="report-list-item ${report.id === active?.id ? "active" : ""}" data-action="select-report" data-id="${esc(report.id)}">
+          <strong>${esc(reportTypeLabel(report.report_type))} · ${esc(report.title)}</strong>
+          <span>${esc(formatDateShort(report.created_at))} · ${esc(reportSummaryLine(report))}</span>
+        </button>
+      `,
+    )
+    .join("");
+
+  const overview = active.sections?.market_overview || {};
+  const keyAnnouncements = active.sections?.key_announcements || [];
+  const abnormalSignals = active.sections?.abnormal_signals || [];
+  const riskNotes = active.sections?.risk_notes || [];
+  const nextWatchlist = active.sections?.next_watchlist || [];
+  detail.innerHTML = `
+    <article class="report-document">
+      <header>
+        <span>${esc(reportTypeLabel(active.report_type))}</span>
+        <h3>${esc(active.title)}</h3>
+        <p>${esc(formatDateShort(active.period_start))} - ${esc(formatDateShort(active.period_end))}</p>
+      </header>
+      <div class="report-metrics">
+        <div><span>Events</span><strong>${esc(active.event_ids?.length ?? overview.event_count ?? 0)}</strong></div>
+        <div><span>Signals</span><strong>${esc(active.signal_ids?.length ?? overview.signal_count ?? 0)}</strong></div>
+        <div><span>Windows</span><strong>${esc(active.position_state_ids?.length ?? overview.position_state_count ?? 0)}</strong></div>
+      </div>
+      <section>
+        <h4>重要公告 / 事件</h4>
+        ${
+          keyAnnouncements.length
+            ? `<ul>${keyAnnouncements.slice(0, 12).map((item) => `<li>${esc(item)}</li>`).join("")}</ul>`
+            : `<p>暂无重要公告条目。</p>`
+        }
+      </section>
+      <section>
+        <h4>异常信号</h4>
+        <p>${esc(abnormalSignals.length ? abnormalSignals.slice(0, 12).join("，") : "暂无高影响异常信号。")}</p>
+      </section>
+      <section>
+        <h4>风险提示</h4>
+        <p>${esc(riskNotes.length ? riskNotes.slice(0, 12).join("，") : "暂无高风险信号。")}</p>
+      </section>
+      <section>
+        <h4>下阶段观察</h4>
+        ${
+          nextWatchlist.length
+            ? `<div class="report-watchlist">${nextWatchlist
+                .slice(0, 10)
+                .map(
+                  (item) => `
+                    <div>
+                      <strong>${esc(item.asset_id)}</strong>
+                      <span>${esc(item.state)} · ${esc((item.watch_variables || []).join(" / "))}</span>
+                    </div>
+                  `,
+                )
+                .join("")}</div>`
+            : `<p>暂无窗口状态变化。</p>`
+        }
+      </section>
+      <footer>${esc(active.disclaimer || "本报告不构成投资建议。")}</footer>
+    </article>
+  `;
 }
 
 function renderSectorCards(target, boardMode = false) {
@@ -2806,6 +2923,7 @@ function renderAll() {
   renderWatchlist();
   renderSearchResults();
   renderConfigPane();
+  renderReportCenter();
   renderDetailView();
   renderGraphOnly();
 }
@@ -2827,30 +2945,64 @@ async function runHealthCheck(button = null) {
   }
 }
 
-async function generateDailyReport(sendEmail = false, button = null) {
+async function fetchRecentReports({ silent = false } = {}) {
+  uiState.reports.loading = true;
+  uiState.reports.error = null;
+  renderReportCenter();
+  try {
+    const result = await apiGet("/api/reports/recent?limit=40");
+    uiState.reports.items = Array.isArray(result.reports) ? result.reports : [];
+    if (!uiState.reports.selectedId && uiState.reports.items.length) {
+      uiState.reports.selectedId = uiState.reports.items[0].id;
+    }
+    renderReportCenter();
+  } catch (error) {
+    uiState.reports.error = error.message;
+    if (!silent) showToast(`报告读取失败：${error.message}`);
+  } finally {
+    uiState.reports.loading = false;
+    renderReportCenter();
+  }
+}
+
+async function generateReport(type = "daily", sendEmail = false, button = null) {
   uiState.reportLoading = true;
   setButtonLoading(button, true, sendEmail ? "生成发送中" : "生成中");
   renderSystemOps();
   try {
-    const result = await apiPost("/api/reports/daily", {
-      days: 1,
+    const result = await apiPost(`/api/reports/${type}`, {
+      days: type === "weekly" ? 7 : 1,
       send_email: sendEmail,
       email_targets: appConfig.emailTargets.filter((target) => target.enabled),
     });
     uiState.lastReport = result;
+    if (result.report?.id) {
+      uiState.reports.selectedId = result.report.id;
+      uiState.reports.items = [result.report, ...uiState.reports.items.filter((report) => report.id !== result.report.id)];
+    }
     const failed = (result.delivery_logs || []).filter((log) => log.status !== "success");
     if (sendEmail && failed.length) {
-      showToast(`日报已生成，邮件失败 ${failed.length} 个`);
+      showToast(`${reportTypeLabel(type)}已生成，邮件失败 ${failed.length} 个`);
     } else {
-      showToast(sendEmail ? "日报已生成并发送" : "日报已生成");
+      showToast(sendEmail ? `${reportTypeLabel(type)}已生成并发送` : `${reportTypeLabel(type)}已生成`);
     }
+    switchView("reports");
+    fetchRecentReports({ silent: true });
     renderAll();
   } catch (error) {
-    showToast(`日报生成失败：${error.message}`);
+    showToast(`${reportTypeLabel(type)}生成失败：${error.message}`);
   } finally {
     uiState.reportLoading = false;
     setButtonLoading(button, false);
   }
+}
+
+function generateDailyReport(sendEmail = false, button = null) {
+  return generateReport("daily", sendEmail, button);
+}
+
+function generateWeeklyReport(sendEmail = false, button = null) {
+  return generateReport("weekly", sendEmail, button);
 }
 
 function updateCommandCenterVisibility(viewId) {
@@ -2879,6 +3031,7 @@ function switchView(viewId) {
   updateCommandCenterVisibility(viewId);
   if (viewId === "graph") renderGraphOnly();
   if (viewId === "detail") renderDetailView();
+  if (viewId === "reports") fetchRecentReports({ silent: true });
 }
 
 function openConfig(tab = "sectors") {
@@ -3298,7 +3451,14 @@ function bindEvents() {
     if (action === "toggle-llm") toggleLlm(id);
     if (action === "run-health-check") runHealthCheck(button);
     if (action === "generate-daily-report") generateDailyReport(false, button);
+    if (action === "generate-weekly-report") generateWeeklyReport(false, button);
     if (action === "generate-daily-report-email") generateDailyReport(true, button);
+    if (action === "refresh-reports") fetchRecentReports();
+    if (action === "open-reports") switchView("reports");
+    if (action === "select-report") {
+      uiState.reports.selectedId = id;
+      renderReportCenter();
+    }
     if (action === "assist-sector-form") assistSectorForm(button.closest("form"), button);
     if (action === "assist-asset-form") assistAssetForm(button.closest("form"), button);
     if (action === "set-default-llm") {
@@ -3354,6 +3514,7 @@ async function boot() {
   bindEvents();
   renderAll();
   syncConfigFromBackend();
+  fetchRecentReports({ silent: true });
   updateCommandCenterVisibility(uiState.activeView);
   setInterval(() => {
     document.querySelector("#clock").textContent = new Date().toLocaleTimeString("zh-CN", {

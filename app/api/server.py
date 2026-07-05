@@ -22,6 +22,7 @@ except ImportError:  # pragma: no cover - exercised only before optional deps ar
     CORSMiddleware = None  # type: ignore
     StaticFiles = None  # type: ignore
 
+from app import __version__
 from app.db import SQLiteSignalStore
 from app.llm.openai_compatible import OpenAICompatibleLLMProvider
 from app.models import Asset, EmailTarget, Event, PositionState, PositionWindowState, Report, Signal
@@ -42,14 +43,15 @@ from app.reports import ReportComposer
 from app.services import AssetIntelligenceService, ConfigAssistService
 
 if load_dotenv is not None:
-    load_dotenv()
+    env_file = os.getenv("SGODAI_ENV_FILE")
+    load_dotenv(env_file) if env_file else load_dotenv()
 
 
 def create_app() -> Any:
     if FastAPI is None:
         raise RuntimeError("FastAPI is not installed. Run `pip install -e .[realdata]`.")
 
-    app = FastAPI(title="SgodAI Market Radar API", version="0.2.0")
+    app = FastAPI(title="SgodAI Market Radar API", version=__version__)
     if CORSMiddleware is not None:
         app.add_middleware(
             CORSMiddleware,
@@ -142,7 +144,7 @@ def create_app() -> Any:
             "status": "ok",
             "checked_at": datetime.now(timezone.utc).isoformat(),
             "components": {
-                "api": {"status": "ok", "version": "0.2.0"},
+                "api": {"status": "ok", "version": __version__},
                 "database": {
                     "status": "ok",
                     "path": str(store.path),
@@ -159,6 +161,7 @@ def create_app() -> Any:
             },
             "actions": {
                 "manual_daily_report": "/api/reports/daily",
+                "manual_weekly_report": "/api/reports/weekly",
                 "test_email": "/api/notifications/email/test",
                 "provider_registry": "/api/providers/registry",
             },
@@ -378,26 +381,11 @@ def create_app() -> Any:
 
     @app.post("/api/reports/daily")
     def generate_daily_report(payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        body = payload or {}
-        store = SQLiteSignalStore()
-        now = datetime.now(timezone.utc)
-        period_start = now - timedelta(days=int(body.get("days") or 1))
-        report = _compose_report_from_store(store, period_start=period_start, period_end=now)
-        store.save_report(report)
-        delivery_logs = []
-        if body.get("send_email"):
-            provider = EmailNotificationProvider()
-            for target_payload in body.get("email_targets") or []:
-                target = _email_target_from_payload(target_payload)
-                if not target.enabled:
-                    continue
-                delivery_logs.append(store.save_delivery_log(provider.send_report(target, report)))
-        return {
-            "success": True,
-            "report": _to_json(report),
-            "delivery_logs": [_to_json(log) for log in delivery_logs],
-            "storage": {"backend": "sqlite", "path": str(store.path)},
-        }
+        return _generate_report("daily", payload or {}, default_days=1)
+
+    @app.post("/api/reports/weekly")
+    def generate_weekly_report(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        return _generate_report("weekly", payload or {}, default_days=7)
 
     @app.get("/api/reports/recent")
     def recent_reports(limit: int = 20) -> dict[str, Any]:
@@ -488,6 +476,32 @@ def _compose_report_from_store(
         period_start=period_start,
         period_end=period_end,
     )
+
+
+def _generate_report(report_type: str, payload: dict[str, Any], *, default_days: int) -> dict[str, Any]:
+    store = SQLiteSignalStore()
+    now = datetime.now(timezone.utc)
+    period_start = now - timedelta(days=int(payload.get("days") or default_days))
+    report = _compose_report_from_store(store, period_start=period_start, period_end=now)
+    if report_type == "weekly":
+        report.report_type = "weekly"
+        report.title = "SgodAI Market Radar Weekly"
+        report.id = report.id.replace("rpt_", "rpt_weekly_", 1)
+    store.save_report(report)
+    delivery_logs = []
+    if payload.get("send_email"):
+        provider = EmailNotificationProvider()
+        for target_payload in payload.get("email_targets") or []:
+            target = _email_target_from_payload(target_payload)
+            if not target.enabled:
+                continue
+            delivery_logs.append(store.save_delivery_log(provider.send_report(target, report)))
+    return {
+        "success": True,
+        "report": _to_json(report),
+        "delivery_logs": [_to_json(log) for log in delivery_logs],
+        "storage": {"backend": "sqlite", "path": str(store.path)},
+    }
 
 
 def _event_from_row(row: dict[str, Any]) -> Event:
@@ -602,6 +616,9 @@ def _market_provider_chain() -> list[Any]:
 
 
 def _public_dir() -> Path:
+    configured = os.getenv("SGODAI_PUBLIC_DIR")
+    if configured:
+        return Path(configured)
     return Path(__file__).resolve().parents[2] / "public"
 
 
@@ -693,7 +710,7 @@ def _sina_provider_from_config() -> SinaFinanceNewsProvider:
 
 
 def _news_config() -> dict[str, Any]:
-    config_path = Path("configs/sources.yaml")
+    config_path = Path(os.getenv("SGODAI_CONFIG_DIR", Path("configs"))) / "sources.yaml"
     try:
         import yaml
     except ImportError:

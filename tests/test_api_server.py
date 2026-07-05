@@ -25,6 +25,7 @@ class ApiServerTest(TestCase):
         self.assertIn("/api/db/status", paths)
         self.assertIn("/api/db/recent", paths)
         self.assertIn("/api/reports/daily", paths)
+        self.assertIn("/api/reports/weekly", paths)
         self.assertIn("/api/reports/recent", paths)
         self.assertIn("/api/notifications/email/config", paths)
         self.assertIn("/api/notifications/email/test", paths)

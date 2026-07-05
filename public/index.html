@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SgodAI Market Radar</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css?v=20260706a" />
+    <link rel="stylesheet" href="./styles.css?v=20260706b" />
   </head>
   <body>
     <div class="shell">
@@ -22,6 +22,7 @@
           <button class="nav-item active" data-view="dashboard" title="Dashboard">⌘</button>
           <button class="nav-item" data-view="radar" title="Sector Radar">◎</button>
           <button class="nav-item" data-view="watchlist" title="Watchlist">◫</button>
+          <button class="nav-item" data-view="reports" title="Reports">▤</button>
           <button class="nav-item" data-view="graph" title="Knowledge Graph">⌬</button>
           <button class="nav-item" data-view="settings" title="Configuration">⚙</button>
         </nav>
@@ -72,7 +73,9 @@
             <div class="panel-actions">
               <button class="primary-button" data-action="run-health-check">一键健康检查</button>
               <button class="text-button" data-action="generate-daily-report">生成日报</button>
+              <button class="text-button" data-action="generate-weekly-report">生成周报</button>
               <button class="text-button" data-action="generate-daily-report-email">生成并发送邮件</button>
+              <button class="text-button" data-action="open-reports">查看报告</button>
             </div>
             <div id="systemOpsStatus" class="system-status-grid"></div>
           </section>
@@ -149,6 +152,25 @@
           </section>
         </section>
 
+        <section id="reports" class="view">
+          <section class="panel report-center">
+            <div class="panel-head">
+              <h2>报告中心</h2>
+              <span id="reportCenterStatus">SQLite</span>
+            </div>
+            <div class="panel-actions">
+              <button class="primary-button" data-action="generate-daily-report">生成日报</button>
+              <button class="text-button" data-action="generate-weekly-report">生成周报</button>
+              <button class="text-button" data-action="generate-daily-report-email">生成日报并发送</button>
+              <button class="text-button" data-action="refresh-reports">刷新列表</button>
+            </div>
+            <div class="report-layout">
+              <div class="report-list" id="reportList"></div>
+              <div class="report-detail" id="reportDetail"></div>
+            </div>
+          </section>
+        </section>
+
         <section id="graph" class="view">
           <section class="panel graph-panel">
             <div class="panel-head">
@@ -201,6 +223,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <script src="./app.js?v=20260706a"></script>
+    <script src="./app.js?v=20260706b"></script>
   </body>
 </html>

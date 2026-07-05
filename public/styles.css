@@ -138,6 +138,8 @@ input {
   min-width: 0;
   padding: 22px;
   display: grid;
+  align-content: start;
+  grid-auto-rows: max-content;
   gap: 18px;
 }
 
@@ -1193,6 +1195,138 @@ td span {
   border-style: dashed;
 }
 
+.report-center {
+  min-height: min(760px, calc(100vh - 150px));
+}
+
+.report-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.35fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.report-list {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.report-list-item {
+  width: 100%;
+  min-height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--text);
+  padding: 10px;
+  display: grid;
+  gap: 5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.report-list-item.active,
+.report-list-item:hover {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 8%, var(--surface-strong));
+}
+
+.report-list-item strong,
+.report-list-item span {
+  overflow-wrap: anywhere;
+}
+
+.report-list-item span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.report-detail {
+  min-width: 0;
+}
+
+.report-document {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.report-document header {
+  display: grid;
+  gap: 4px;
+}
+
+.report-document header span,
+.report-document header p,
+.report-document footer,
+.report-document section p,
+.report-watchlist span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.report-document h3,
+.report-document h4,
+.report-document p,
+.report-document ul {
+  margin: 0;
+}
+
+.report-document h3 {
+  font-size: 20px;
+}
+
+.report-document h4 {
+  font-size: 13px;
+}
+
+.report-document ul {
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.report-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.report-metrics div,
+.report-watchlist div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--surface), var(--surface-strong));
+}
+
+.report-metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.report-metrics strong {
+  font-size: 22px;
+}
+
+.report-watchlist {
+  display: grid;
+  gap: 8px;
+}
+
+.report-watchlist strong,
+.report-watchlist span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
 .toggle-button {
   position: relative;
   width: 40px;
@@ -1320,7 +1454,9 @@ td span {
   }
 
   .system-status-grid,
-  .provider-status-list {
+  .provider-status-list,
+  .report-layout,
+  .report-metrics {
     grid-template-columns: 1fr;
   }
 

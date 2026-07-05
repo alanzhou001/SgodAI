@@ -55,8 +55,10 @@ python3 -m unittest discover -s tests
 ## Build macOS App
 
 SgodAI includes a native SwiftUI + WebKit macOS shell under
-`macos/SgodAI-Mac`. The app first connects to the local Core Engine at
-`http://127.0.0.1:8000/`; if the API is not running, it falls back to the
+`macos/SgodAI-Mac`. Starting with v0.2.1, the release app embeds a bundled
+Python Core Engine binary and starts it automatically on
+`http://127.0.0.1:18765/`. Users no longer need to start `uvicorn` before
+opening the app. If the embedded API cannot start, the app falls back to the
 bundled static frontend.
 
 Build with Xcode 27 beta when available:
@@ -68,10 +70,20 @@ scripts/build_macos_app.sh
 The release artifact is generated at:
 
 ```text
-dist/SgodAI-Market-Radar-macOS-v0.2.0.zip
+dist/SgodAI-Market-Radar-macOS-v0.2.1.zip
 ```
 
-This first macOS package is intentionally unsigned and not notarized. For wider
+The installed app keeps user-local state under:
+
+```text
+~/Library/Application Support/SgodAI/
+  .env
+  data/sgodai.sqlite
+  logs/backend.log
+```
+
+Fill `.env` there when you want DeepSeek or QQ Mail from the installed app.
+This macOS package is intentionally unsigned and not notarized. For wider
 distribution, add an Apple Developer Team ID and notarization step before
 publishing outside GitHub releases.
 
