@@ -217,8 +217,10 @@ input,
   box-shadow: var(--shadow);
 }
 
-.search-results[hidden] {
-  display: none;
+.search-results[hidden],
+.search-results.is-hidden,
+.search-results:empty {
+  display: none !important;
 }
 
 .search-result {
@@ -1059,6 +1061,12 @@ td span {
 
   .search-shell {
     grid-column: 1 / -1;
+  }
+
+  .search-results {
+    position: static;
+    max-height: min(280px, 45vh);
+    overflow-y: auto;
   }
 
   .segmented {

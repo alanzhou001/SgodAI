@@ -611,15 +611,26 @@ function searchCatalog(query) {
   return [...sectors, ...assets].slice(0, 10);
 }
 
+function setSearchResultsVisible(target, visible) {
+  if (!target) return;
+  target.hidden = !visible;
+  target.classList.toggle("is-hidden", !visible);
+  target.style.display = visible ? "" : "none";
+}
+
 function renderSearchResults() {
   const target = document.querySelector("#searchResults");
   const items = searchCatalog(uiState.query);
-  if (!uiState.query || !items.length) {
-    target.hidden = !uiState.query;
-    target.innerHTML = uiState.query ? `<div class="search-empty">未匹配，可在配置页创建</div>` : "";
+  if (!normalize(uiState.query)) {
+    target.innerHTML = "";
+    setSearchResultsVisible(target, false);
     return;
   }
-  target.hidden = false;
+  if (!items.length) {
+    target.innerHTML = `<div class="search-empty">未匹配，可在配置页创建</div>`;
+    setSearchResultsVisible(target, true);
+    return;
+  }
   target.innerHTML = items
     .map(
       (item) => `
@@ -633,6 +644,7 @@ function renderSearchResults() {
       `,
     )
     .join("");
+  setSearchResultsVisible(target, true);
 }
 
 function addSector(id) {
@@ -1328,7 +1340,7 @@ function bindEvents() {
 
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".search-shell")) {
-      document.querySelector("#searchResults").hidden = true;
+      setSearchResultsVisible(document.querySelector("#searchResults"), false);
     }
   });
 
