@@ -201,6 +201,104 @@ const assetCatalog = [
   },
 ];
 
+const assetUniverseAdditions = [
+  ["AMD.US", "AMD", "US", "AI算力", "观察", 78, 72, 50],
+  ["AVGO.US", "Broadcom", "US", "AI算力", "观察", 77, 70, 48],
+  ["MRVL.US", "Marvell", "US", "AI算力", "观察", 70, 64, 49],
+  ["ARM.US", "Arm Holdings", "US", "AI算力", "观察", 73, 67, 54],
+  ["SMCI.US", "Super Micro Computer", "US", "AI算力", "风险观察", 69, 58, 66],
+  ["MSFT.US", "Microsoft", "US", "AI算力", "持有跟踪", 75, 69, 42],
+  ["GOOGL.US", "Alphabet", "US", "AI算力", "持有跟踪", 73, 67, 43],
+  ["AMZN.US", "Amazon", "US", "AI算力", "持有跟踪", 74, 68, 44],
+  ["000977.SZ", "浪潮信息", "A-share", "AI算力", "观察", 68, 61, 52],
+  ["603019.SH", "中科曙光", "A-share", "AI算力", "观察", 69, 63, 53],
+  ["688041.SH", "海光信息", "A-share", "AI算力", "观察", 72, 65, 56],
+  ["688256.SH", "寒武纪-U", "A-share", "AI算力", "风险观察", 74, 66, 64],
+  ["300308.SZ", "中际旭创", "A-share", "AI算力", "右侧观察", 76, 73, 50],
+  ["300502.SZ", "新易盛", "A-share", "AI算力", "右侧观察", 74, 72, 52],
+  ["300394.SZ", "天孚通信", "A-share", "AI算力", "观察", 70, 66, 50],
+  ["002281.SZ", "光迅科技", "A-share", "AI算力", "观察", 65, 60, 48],
+  ["000938.SZ", "紫光股份", "A-share", "AI算力", "观察", 62, 58, 46],
+  ["MU.US", "Micron Technology", "US", "存储芯片", "观察", 73, 67, 51],
+  ["WDC.US", "Western Digital", "US", "存储芯片", "观察", 68, 61, 50],
+  ["STX.US", "Seagate", "US", "存储芯片", "观察", 62, 56, 48],
+  ["005930.KS", "Samsung Electronics", "KR", "存储芯片", "观察", 72, 65, 47],
+  ["000660.KS", "SK hynix", "KR", "存储芯片", "右侧观察", 76, 72, 49],
+  ["000021.SZ", "深科技", "A-share", "存储芯片", "观察", 58, 53, 46],
+  ["600584.SH", "长电科技", "A-share", "存储芯片", "观察", 61, 55, 48],
+  ["002156.SZ", "通富微电", "A-share", "存储芯片", "观察", 60, 55, 49],
+  ["002185.SZ", "华天科技", "A-share", "存储芯片", "观察", 57, 51, 47],
+  ["ASML.US", "ASML", "US", "半导体设备", "持有跟踪", 78, 70, 46],
+  ["AMAT.US", "Applied Materials", "US", "半导体设备", "观察", 74, 66, 45],
+  ["LRCX.US", "Lam Research", "US", "半导体设备", "观察", 73, 65, 46],
+  ["KLAC.US", "KLA", "US", "半导体设备", "观察", 72, 64, 45],
+  ["TER.US", "Teradyne", "US", "半导体设备", "观察", 65, 58, 45],
+  ["002371.SZ", "北方华创", "A-share", "半导体设备", "观察", 75, 66, 51],
+  ["688012.SH", "中微公司", "A-share", "半导体设备", "观察", 73, 64, 49],
+  ["688072.SH", "拓荆科技", "A-share", "半导体设备", "观察", 70, 62, 52],
+  ["688082.SH", "盛美上海", "A-share", "半导体设备", "观察", 67, 59, 49],
+  ["300604.SZ", "长川科技", "A-share", "半导体设备", "观察", 65, 58, 50],
+  ["688120.SH", "华海清科", "A-share", "半导体设备", "观察", 66, 59, 48],
+  ["688200.SH", "华峰测控", "A-share", "半导体设备", "观察", 62, 55, 47],
+  ["600276.SH", "恒瑞医药", "A-share", "创新药", "观察", 68, 58, 49],
+  ["603259.SH", "药明康德", "A-share", "创新药", "风险观察", 65, 50, 65],
+  ["2359.HK", "药明康德", "HK", "创新药", "风险观察", 64, 50, 66],
+  ["300759.SZ", "康龙化成", "A-share", "创新药", "风险观察", 59, 48, 63],
+  ["6160.HK", "百济神州", "HK", "创新药", "观察", 70, 60, 55],
+  ["688235.SH", "百济神州-U", "A-share", "创新药", "观察", 70, 60, 55],
+  ["1801.HK", "信达生物", "HK", "创新药", "观察", 66, 57, 53],
+  ["9969.HK", "诺诚健华", "HK", "创新药", "观察", 60, 52, 57],
+  ["3692.HK", "翰森制药", "HK", "创新药", "观察", 62, 53, 50],
+  ["1177.HK", "中国生物制药", "HK", "创新药", "观察", 61, 52, 49],
+  ["1093.HK", "石药集团", "HK", "创新药", "观察", 60, 51, 49],
+  ["688506.SH", "百利天恒", "A-share", "创新药", "观察", 64, 58, 61],
+  ["688266.SH", "泽璟制药-U", "A-share", "创新药", "观察", 58, 51, 62],
+  ["688578.SH", "艾力斯", "A-share", "创新药", "观察", 62, 55, 57],
+  ["MRNA.US", "Moderna", "US", "创新药", "观察", 60, 48, 62],
+  ["REGN.US", "Regeneron", "US", "创新药", "持有跟踪", 66, 56, 44],
+  ["VRTX.US", "Vertex", "US", "创新药", "持有跟踪", 67, 57, 43],
+  ["002085.SZ", "万丰奥威", "A-share", "低空经济", "风险观察", 66, 59, 63],
+  ["002097.SZ", "山河智能", "A-share", "低空经济", "观察", 58, 52, 55],
+  ["300900.SZ", "广联航空", "A-share", "低空经济", "观察", 56, 51, 55],
+  ["688297.SH", "中无人机", "A-share", "低空经济", "观察", 60, 53, 52],
+  ["600038.SH", "中直股份", "A-share", "低空经济", "观察", 61, 54, 50],
+  ["000099.SZ", "中信海直", "A-share", "低空经济", "观察", 59, 54, 56],
+  ["002111.SZ", "威海广泰", "A-share", "低空经济", "观察", 55, 49, 50],
+  ["300699.SZ", "光威复材", "A-share", "低空经济", "观察", 57, 51, 49],
+  ["002389.SZ", "航天彩虹", "A-share", "低空经济", "观察", 58, 52, 51],
+  ["300274.SZ", "阳光电源", "A-share", "储能", "观察", 70, 61, 55],
+  ["300014.SZ", "亿纬锂能", "A-share", "储能", "观察", 64, 55, 56],
+  ["002594.SZ", "比亚迪", "A-share", "储能", "观察", 68, 58, 52],
+  ["300207.SZ", "欣旺达", "A-share", "储能", "观察", 58, 51, 55],
+  ["688390.SH", "固德威", "A-share", "储能", "风险观察", 55, 45, 65],
+  ["688032.SH", "禾迈股份", "A-share", "储能", "风险观察", 56, 46, 64],
+  ["688223.SH", "晶科能源", "A-share", "储能", "观察", 57, 49, 61],
+  ["002812.SZ", "恩捷股份", "A-share", "储能", "观察", 54, 47, 60],
+  ["002709.SZ", "天赐材料", "A-share", "储能", "观察", 55, 48, 59],
+  ["002460.SZ", "赣锋锂业", "A-share", "储能", "观察", 59, 50, 60],
+  ["002466.SZ", "天齐锂业", "A-share", "储能", "观察", 60, 51, 59],
+  ["TSLA.US", "Tesla", "US", "储能", "观察", 67, 57, 58],
+  ["ENPH.US", "Enphase Energy", "US", "储能", "风险观察", 54, 44, 68],
+  ["SEDG.US", "SolarEdge", "US", "储能", "风险观察", 51, 39, 72],
+  ["ALB.US", "Albemarle", "US", "储能", "观察", 58, 49, 59],
+  ["SQM.US", "SQM", "US", "储能", "观察", 57, 48, 58],
+  ["601899.SH", "紫金矿业", "A-share", "铜", "观察", 72, 66, 48],
+  ["603993.SH", "洛阳钼业", "A-share", "铜", "观察", 68, 61, 52],
+  ["600362.SH", "江西铜业", "A-share", "铜", "观察", 66, 59, 50],
+  ["000630.SZ", "铜陵有色", "A-share", "铜", "观察", 62, 55, 49],
+  ["601600.SH", "中国铝业", "A-share", "铜", "观察", 61, 54, 50],
+  ["000807.SZ", "云铝股份", "A-share", "铜", "观察", 60, 53, 49],
+  ["000933.SZ", "神火股份", "A-share", "铜", "观察", 60, 53, 48],
+  ["600547.SH", "山东黄金", "A-share", "铜", "观察", 58, 51, 47],
+  ["FCX.US", "Freeport-McMoRan", "US", "铜", "观察", 69, 62, 50],
+  ["SCCO.US", "Southern Copper", "US", "铜", "观察", 67, 60, 49],
+  ["BHP.US", "BHP", "US", "铜", "观察", 64, 57, 46],
+  ["RIO.US", "Rio Tinto", "US", "铜", "观察", 63, 56, 46],
+  ["VALE.US", "Vale", "US", "铜", "观察", 61, 54, 48],
+];
+
+const assetUniverse = uniqBy([...assetCatalog, ...assetUniverseAdditions.map(createUniverseAsset)], (asset) => asset.ticker);
+
 const industryAssistProfiles = [
   {
     terms: ["ai算力", "算力", "gpu", "服务器"],
@@ -210,7 +308,27 @@ const industryAssistProfiles = [
     indicators: ["云厂商资本开支", "GPU/ASIC供给", "服务器订单", "数据中心电力"],
     upstream: ["GPU/ASIC", "先进封装", "光模块", "服务器ODM"],
     downstream: ["云计算", "大模型应用", "数据中心", "企业AI软件"],
-    relatedTickers: ["NVDA.US", "TSM.US"],
+    relatedTickers: [
+      "NVDA.US",
+      "AMD.US",
+      "AVGO.US",
+      "MRVL.US",
+      "ARM.US",
+      "SMCI.US",
+      "MSFT.US",
+      "GOOGL.US",
+      "AMZN.US",
+      "000977.SZ",
+      "603019.SH",
+      "688041.SH",
+      "688256.SH",
+      "300308.SZ",
+      "300502.SZ",
+      "300394.SZ",
+      "002281.SZ",
+      "000938.SZ",
+      "TSM.US",
+    ],
   },
   {
     terms: ["hbm", "高带宽存储"],
@@ -220,7 +338,24 @@ const industryAssistProfiles = [
     indicators: ["HBM价格", "先进封装产能", "AI服务器出货", "海外龙头指引"],
     upstream: ["DRAM晶圆", "先进封装", "半导体设备", "封装材料"],
     downstream: ["AI服务器", "GPU模组", "云计算", "高性能计算"],
-    relatedTickers: ["688525.SH", "603986.SH", "NVDA.US", "TSM.US"],
+    relatedTickers: [
+      "688525.SH",
+      "603986.SH",
+      "MU.US",
+      "000660.KS",
+      "005930.KS",
+      "NVDA.US",
+      "AMD.US",
+      "AVGO.US",
+      "MRVL.US",
+      "TSM.US",
+      "ASML.US",
+      "AMAT.US",
+      "LRCX.US",
+      "600584.SH",
+      "002156.SZ",
+      "002185.SZ",
+    ],
   },
   {
     terms: ["存储芯片", "dram", "nand", "存储"],
@@ -230,7 +365,21 @@ const industryAssistProfiles = [
     indicators: ["DRAM价格", "NAND价格", "库存天数", "下游锁单"],
     upstream: ["晶圆制造", "半导体设备", "材料", "封测"],
     downstream: ["AI服务器", "消费电子", "汽车电子", "工业控制"],
-    relatedTickers: ["688525.SH", "603986.SH", "NVDA.US"],
+    relatedTickers: [
+      "688525.SH",
+      "603986.SH",
+      "MU.US",
+      "WDC.US",
+      "STX.US",
+      "005930.KS",
+      "000660.KS",
+      "000021.SZ",
+      "600584.SH",
+      "002156.SZ",
+      "002185.SZ",
+      "NVDA.US",
+      "TSM.US",
+    ],
   },
   {
     terms: ["半导体设备", "设备", "晶圆厂"],
@@ -240,7 +389,23 @@ const industryAssistProfiles = [
     indicators: ["设备订单", "晶圆厂资本开支", "国产化率", "验收节奏"],
     upstream: ["核心零部件", "精密加工", "电子材料", "工业软件"],
     downstream: ["晶圆制造", "先进封装", "存储芯片", "功率半导体"],
-    relatedTickers: ["TSM.US", "603986.SH", "688525.SH"],
+    relatedTickers: [
+      "ASML.US",
+      "AMAT.US",
+      "LRCX.US",
+      "KLAC.US",
+      "TER.US",
+      "TSM.US",
+      "002371.SZ",
+      "688012.SH",
+      "688072.SH",
+      "688082.SH",
+      "300604.SZ",
+      "688120.SH",
+      "688200.SH",
+      "603986.SH",
+      "688525.SH",
+    ],
   },
   {
     terms: ["创新药", "biotech", "医药"],
@@ -250,7 +415,26 @@ const industryAssistProfiles = [
     indicators: ["临床数据", "BD交易", "融资环境", "医保政策"],
     upstream: ["CXO", "靶点发现", "临床试验", "原料药"],
     downstream: ["商业化销售", "医院终端", "医保支付", "海外授权"],
-    relatedTickers: ["2269.HK"],
+    relatedTickers: [
+      "600276.SH",
+      "603259.SH",
+      "2359.HK",
+      "300759.SZ",
+      "2269.HK",
+      "6160.HK",
+      "688235.SH",
+      "1801.HK",
+      "9969.HK",
+      "3692.HK",
+      "1177.HK",
+      "1093.HK",
+      "688506.SH",
+      "688266.SH",
+      "688578.SH",
+      "MRNA.US",
+      "REGN.US",
+      "VRTX.US",
+    ],
   },
   {
     terms: ["低空经济", "低空", "无人机", "evtol"],
@@ -260,7 +444,17 @@ const industryAssistProfiles = [
     indicators: ["地方政策", "订单公告", "空域改革", "适航进度"],
     upstream: ["电池", "航电系统", "复合材料", "飞控芯片"],
     downstream: ["城市交通", "物流巡检", "应急救援", "文旅场景"],
-    relatedTickers: [],
+    relatedTickers: [
+      "002085.SZ",
+      "002097.SZ",
+      "300900.SZ",
+      "688297.SH",
+      "600038.SH",
+      "000099.SZ",
+      "002111.SZ",
+      "300699.SZ",
+      "002389.SZ",
+    ],
   },
   {
     terms: ["储能", "电池", "新能源"],
@@ -270,7 +464,25 @@ const industryAssistProfiles = [
     indicators: ["电芯价格", "海外订单", "利用小时", "装机规模"],
     upstream: ["锂电材料", "电芯", "PCS", "温控系统"],
     downstream: ["新能源电站", "工商业储能", "电网侧储能", "海外渠道"],
-    relatedTickers: ["300750.SZ"],
+    relatedTickers: [
+      "300750.SZ",
+      "300274.SZ",
+      "300014.SZ",
+      "002594.SZ",
+      "300207.SZ",
+      "688390.SH",
+      "688032.SH",
+      "688223.SH",
+      "002812.SZ",
+      "002709.SZ",
+      "002460.SZ",
+      "002466.SZ",
+      "TSLA.US",
+      "ENPH.US",
+      "SEDG.US",
+      "ALB.US",
+      "SQM.US",
+    ],
   },
   {
     terms: ["铜", "铝", "锂", "资源"],
@@ -280,7 +492,25 @@ const industryAssistProfiles = [
     indicators: ["LME库存", "现货升贴水", "矿端扰动", "下游开工率"],
     upstream: ["矿山", "冶炼", "再生金属", "物流"],
     downstream: ["电网", "新能源车", "数据中心", "家电"],
-    relatedTickers: [],
+    relatedTickers: [
+      "601899.SH",
+      "603993.SH",
+      "600362.SH",
+      "000630.SZ",
+      "601600.SH",
+      "000807.SZ",
+      "000933.SZ",
+      "600547.SH",
+      "002460.SZ",
+      "002466.SZ",
+      "FCX.US",
+      "SCCO.US",
+      "BHP.US",
+      "RIO.US",
+      "VALE.US",
+      "ALB.US",
+      "SQM.US",
+    ],
   },
 ];
 
@@ -420,6 +650,24 @@ function slug(value) {
     .slice(0, 32);
 }
 
+function createUniverseAsset([ticker, name, market, sector, state, impact, trend, risk]) {
+  return {
+    ticker,
+    name,
+    market,
+    sector,
+    state,
+    impact,
+    trend,
+    risk,
+    evidence: "seed_universe",
+    events: [
+      ["候选", "产业链候选池标的，等待真实数据源验证"],
+      ["映射", `${sector} 相关标的候选`],
+    ],
+  };
+}
+
 function listFromValue(value) {
   if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
   return String(value || "")
@@ -439,7 +687,7 @@ function uniqBy(items, keyFn) {
 }
 
 function allAssets() {
-  return [...assetCatalog, ...appConfig.customAssets];
+  return uniqBy([...appConfig.customAssets, ...assetUniverse], (asset) => asset.ticker);
 }
 
 function allSectors() {
@@ -551,7 +799,7 @@ function relatedAssetsForProfile(name, profile) {
       return explicit.has(asset.ticker) || text.includes(normalize(asset.sector)) || assetText.includes(normalize(name));
     }),
     (asset) => asset.ticker,
-  ).slice(0, 5);
+  );
 }
 
 function inferAssetDraft(name, payload = {}) {
@@ -630,9 +878,7 @@ function buildData() {
   const sectors = [...sectorCatalog, ...appConfig.customSectors].filter((sector) =>
     appConfig.sectorIds.includes(sector.id),
   );
-  const assets = [...assetCatalog, ...appConfig.customAssets].filter((asset) =>
-    appConfig.assetTickers.includes(asset.ticker),
-  );
+  const assets = allAssets().filter((asset) => appConfig.assetTickers.includes(asset.ticker));
   return {
     sectors,
     assets,
@@ -875,7 +1121,7 @@ function searchCatalog(query) {
         added: appConfig.sectorIds.includes(sector.id),
       };
     });
-  const assets = [...assetCatalog, ...appConfig.customAssets]
+  const assets = allAssets()
     .filter((asset) => assetMatchesQuery(asset, q))
     .map((asset) => ({
       kind: "asset",
@@ -938,7 +1184,7 @@ function addSector(id) {
 }
 
 function addAsset(ticker) {
-  const asset = [...assetCatalog, ...appConfig.customAssets].find((item) => item.ticker === ticker);
+  const asset = findAssetByTicker(ticker);
   if (!asset) return;
   const linkedSector = [...sectorCatalog, ...appConfig.customSectors].find(
     (sector) => sector.name === asset.sector,
@@ -1578,7 +1824,7 @@ function renderSectorConfig() {
 }
 
 function renderAssetConfig() {
-  const catalogItems = [...assetCatalog, ...appConfig.customAssets];
+  const catalogItems = allAssets();
   return `
     <div class="config-grid">
       <form class="config-form" id="assetForm">
@@ -1930,8 +2176,8 @@ function createSector(form) {
       ? listFromValue(data.get("downstream")).slice(0, 5)
       : assist.downstream.slice(0, 5),
     relatedTickers: listFromValue(data.get("relatedTickers")).length
-      ? listFromValue(data.get("relatedTickers")).slice(0, 8)
-      : assist.relatedTickers.slice(0, 8),
+      ? listFromValue(data.get("relatedTickers")).slice(0, 80)
+      : assist.relatedTickers.slice(0, 80),
     source: "manual_or_llm_assist",
   };
   if (!sector.indicators.length) sector.indicators = ["政策", "订单", "价格"];
