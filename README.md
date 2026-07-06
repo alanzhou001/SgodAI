@@ -102,6 +102,33 @@ This macOS package is intentionally unsigned and not notarized. For wider
 distribution, add an Apple Developer Team ID and notarization step before
 publishing outside GitHub releases.
 
+## Build iOS App
+
+SgodAI also includes a SwiftUI + WebKit iOS shell under `ios/SgodAI-iOS`.
+Because iOS apps cannot execute an embedded Python backend, the iOS app loads
+the bundled static frontend by default and provides an in-app connection
+setting for a Core Engine URL, such as a Mac or server running:
+
+```text
+http://192.168.1.10:8000/
+```
+
+Build the iOS Simulator package with Xcode 27 beta when available:
+
+```bash
+scripts/build_ios_app.sh
+```
+
+The simulator artifact is generated at:
+
+```text
+dist/SgodAI-Market-Radar-iOS-Simulator-v0.2.1.zip
+```
+
+For real-device installation or App Store/TestFlight distribution, configure an
+Apple Developer Team ID, bundle identifier, signing certificate, and
+provisioning profile in Xcode.
+
 ## Real Data + DeepSeek Setup
 
 The first real-data profile is DeepSeek + AkShare + RSSHub + CNINFO + HKEXnews,
