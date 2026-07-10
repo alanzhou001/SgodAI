@@ -1094,6 +1094,72 @@ td span {
   gap: 10px;
 }
 
+.sector-pool-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.sector-pool-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(150px, 0.8fr) minmax(120px, 0.55fr) auto;
+  gap: 10px;
+  align-items: end;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface-strong);
+}
+
+.sector-pool-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sector-pool-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sector-pool-columns h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.sector-pool-list {
+  display: grid;
+  gap: 8px;
+}
+
+.sector-pool-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface-strong);
+}
+
+.sector-pool-item div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.sector-pool-item strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.sector-pool-item span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .compact-asset-card {
   background: var(--surface-strong);
 }
@@ -1611,7 +1677,9 @@ td span {
   .split,
   .settings-layout,
   .config-grid,
-  .detail-layout {
+  .detail-layout,
+  .sector-pool-form,
+  .sector-pool-columns {
     grid-template-columns: 1fr;
   }
 

@@ -530,6 +530,7 @@ const defaultConfig = {
   sectorIds: ["ai_compute", "hbm", "memory", "biotech", "low_altitude", "copper"],
   deletedSectorIds: [],
   deletedAssetTickers: [],
+  sectorAssetPools: {},
   assetTickers: ["688525.SH", "603986.SH", "NVDA.US", "300750.SZ"],
   customSectors: [],
   customAssets: [],
@@ -859,6 +860,11 @@ function sectorProfile(sector) {
   const seed = [sector.name, sector.driver, ...(sector.indicators || [])].join(" ");
   const matched = matchIndustryProfile(seed) || genericIndustryProfile(sector.name);
   const indicators = listFromValue(sector.indicators).length ? listFromValue(sector.indicators) : matched.indicators;
+  const pool = sectorAssetPool(sector.id);
+  const excluded = new Set(pool.exclude.map((ticker) => ticker.toUpperCase()));
+  const baseRelatedTickers = listFromValue(sector.relatedTickers).length
+    ? listFromValue(sector.relatedTickers)
+    : matched.relatedTickers;
   return {
     ...matched,
     horizon: sector.horizon || matched.horizon,
@@ -867,10 +873,23 @@ function sectorProfile(sector) {
     indicators,
     upstream: listFromValue(sector.upstream).length ? listFromValue(sector.upstream) : matched.upstream,
     downstream: listFromValue(sector.downstream).length ? listFromValue(sector.downstream) : matched.downstream,
-    relatedTickers: listFromValue(sector.relatedTickers).length
-      ? listFromValue(sector.relatedTickers)
-      : matched.relatedTickers,
+    relatedTickers: uniqBy([...baseRelatedTickers, ...pool.include], (ticker) => String(ticker).toUpperCase()).filter(
+      (ticker) => !excluded.has(String(ticker).toUpperCase()),
+    ),
   };
+}
+
+function sectorAssetPool(sectorId) {
+  if (!appConfig.sectorAssetPools) appConfig.sectorAssetPools = {};
+  if (!appConfig.sectorAssetPools[sectorId]) appConfig.sectorAssetPools[sectorId] = { include: [], exclude: [] };
+  const pool = appConfig.sectorAssetPools[sectorId];
+  pool.include = (pool.include || []).map((ticker) => String(ticker).toUpperCase());
+  pool.exclude = (pool.exclude || []).map((ticker) => String(ticker).toUpperCase());
+  return pool;
+}
+
+function sectorExcludedTickerSet(sectorId) {
+  return new Set(sectorAssetPool(sectorId).exclude.map((ticker) => ticker.toUpperCase()));
 }
 
 function relatedAssetsForSector(sector) {
@@ -883,7 +902,10 @@ function relatedAssetsForSector(sector) {
     return asset.sector === sector.name || text.includes(normalize(asset.sector)) || assetText.includes(normalize(sector.name));
   });
   const watched = currentData.assets.filter((asset) => asset.sector === sector.name);
-  return uniqBy([...watched, ...explicit, ...semantic], (asset) => asset.ticker).slice(0, 5);
+  const excluded = sectorExcludedTickerSet(sector.id);
+  return uniqBy([...watched, ...explicit, ...semantic], (asset) => asset.ticker)
+    .filter((asset) => !excluded.has(String(asset.ticker).toUpperCase()))
+    .slice(0, 5);
 }
 
 function assetsForSectorDetail(sector) {
@@ -893,7 +915,10 @@ function assetsForSectorDetail(sector) {
   const direct = allAssets().filter((asset) => asset.sector === sector.name);
   const text = normalize([sector.name, profile.terms.join(" "), profile.upstream.join(" "), profile.downstream.join(" ")].join(" "));
   const semantic = allAssets().filter((asset) => text.includes(normalize(asset.sector)));
-  return uniqBy([...direct, ...explicit, ...semantic], (asset) => asset.ticker);
+  const excluded = sectorExcludedTickerSet(sector.id);
+  return uniqBy([...direct, ...explicit, ...semantic], (asset) => asset.ticker).filter(
+    (asset) => !excluded.has(String(asset.ticker).toUpperCase()),
+  );
 }
 
 function localLlmAssist(kind, payload) {
@@ -1024,6 +1049,7 @@ function normalizeConfigPayload(parsed = {}) {
     emailTargets: parsed.emailTargets || clone(defaultConfig.emailTargets),
     deletedSectorIds: parsed.deletedSectorIds || [],
     deletedAssetTickers: parsed.deletedAssetTickers || [],
+    sectorAssetPools: parsed.sectorAssetPools || {},
     customSectors: parsed.customSectors || [],
     customAssets: parsed.customAssets || [],
   };
@@ -1939,6 +1965,56 @@ function deleteAsset(ticker) {
   persistConfig(`已删除标的：${asset.name}`);
 }
 
+function addAssetToSector(ticker, sectorId) {
+  const sector = findSectorById(sectorId);
+  const asset = findAssetByTicker(ticker);
+  if (!sector || !asset) return;
+  const pool = sectorAssetPool(sectorId);
+  const normalized = String(ticker).toUpperCase();
+  pool.exclude = pool.exclude.filter((item) => item !== normalized);
+  if (!pool.include.includes(normalized)) pool.include.push(normalized);
+  persistConfig(`已加入 ${sector.name} 行业池：${asset.name}`);
+}
+
+function removeAssetFromSector(ticker, sectorId) {
+  const sector = findSectorById(sectorId);
+  const asset = findAssetByTicker(ticker);
+  if (!sector || !asset) return;
+  const pool = sectorAssetPool(sectorId);
+  const normalized = String(ticker).toUpperCase();
+  pool.include = pool.include.filter((item) => item !== normalized);
+  if (!pool.exclude.includes(normalized)) pool.exclude.push(normalized);
+  persistConfig(`已从 ${sector.name} 行业池移除：${asset.name}`);
+}
+
+function createSectorAsset(form) {
+  const sector = findSectorById(form.dataset.sectorId);
+  if (!sector) return;
+  const data = new FormData(form);
+  const ticker = String(data.get("ticker") || "").trim().toUpperCase();
+  if (!ticker) return;
+  const existing = findAssetByTicker(ticker);
+  if (!existing) {
+    const name = String(data.get("name") || ticker).trim();
+    appConfig.customAssets = appConfig.customAssets.filter((asset) => asset.ticker !== ticker);
+    appConfig.customAssets.push({
+      ticker,
+      name,
+      market: String(data.get("market") || "A-share"),
+      sector: sector.name,
+      state: "观察",
+      impact: 50,
+      trend: 50,
+      risk: 45,
+      evidence: "sector_pool_manual",
+      events: [["行业池", `手动加入 ${sector.name} 行业池，等待真实数据验证`]],
+    });
+  }
+  addAssetToSector(ticker, sector.id);
+  form.reset();
+  ensureAssetIntelligence(findAssetByTicker(ticker), { force: true });
+}
+
 function toggleEmail(id) {
   const item = appConfig.emailTargets.find((target) => target.id === id);
   if (!item) return;
@@ -2253,6 +2329,81 @@ function compactAssetCard(asset) {
       ${scoreBars({ ...asset, sentiment: assetSentiment(asset) })}
       <p>${esc(asset.market)} · ${esc(asset.sector)} · ${esc(asset.evidence)}</p>
     </article>
+  `;
+}
+
+function sectorPoolCandidateAssets(sector, currentAssets) {
+  const current = new Set(currentAssets.map((asset) => asset.ticker));
+  return allAssets()
+    .filter((asset) => !current.has(asset.ticker))
+    .filter((asset) => appConfig.assetTickers.includes(asset.ticker) || asset.sector === sector.name)
+    .slice(0, 12);
+}
+
+function renderSectorAssetManager(sector, assets) {
+  const candidates = sectorPoolCandidateAssets(sector, assets);
+  return `
+    <section class="panel sector-pool-panel">
+      <div class="panel-head">
+        <h2>行业池标的管理</h2>
+        <span>Include / Exclude</span>
+      </div>
+      <form class="sector-pool-form" id="sectorAssetForm" data-sector-id="${esc(sector.id)}">
+        <label>标的名称<input name="name" placeholder="例如：宁德时代"></label>
+        <label>代码<input name="ticker" required placeholder="例如：300750.SZ"></label>
+        <label>市场<select name="market"><option>A-share</option><option>HK</option><option>US</option><option>ETF</option></select></label>
+        <div class="form-actions">
+          <button class="primary-button" type="submit">加入行业池</button>
+        </div>
+      </form>
+      <div class="sector-pool-columns">
+        <div>
+          <h3>当前行业池</h3>
+          <div class="sector-pool-list">
+            ${
+              assets.length
+                ? assets
+                    .map(
+                      (asset) => `
+                        <article class="sector-pool-item">
+                          <div>
+                            <strong>${esc(asset.name)} · ${esc(asset.ticker)}</strong>
+                            <span>${esc(asset.market)} · ${esc(asset.evidence || "sector_pool")}</span>
+                          </div>
+                          <button class="text-button danger" data-action="remove-asset-from-sector" data-sector-id="${esc(sector.id)}" data-id="${esc(asset.ticker)}">从行业池移除</button>
+                        </article>
+                      `,
+                    )
+                    .join("")
+                : `<div class="empty-inline">暂无行业池标的。</div>`
+            }
+          </div>
+        </div>
+        <div>
+          <h3>可加入候选</h3>
+          <div class="sector-pool-list">
+            ${
+              candidates.length
+                ? candidates
+                    .map(
+                      (asset) => `
+                        <article class="sector-pool-item">
+                          <div>
+                            <strong>${esc(asset.name)} · ${esc(asset.ticker)}</strong>
+                            <span>${esc(asset.market)} · ${esc(asset.sector)}</span>
+                          </div>
+                          <button class="text-button" data-action="add-asset-to-sector" data-sector-id="${esc(sector.id)}" data-id="${esc(asset.ticker)}">加入</button>
+                        </article>
+                      `,
+                    )
+                    .join("")
+                : `<div class="empty-inline">暂无候选。可在上方输入代码直接加入。</div>`
+            }
+          </div>
+        </div>
+      </div>
+      <p class="graph-source">从行业池移除只影响该行业映射，不会删除标的本身，也不会自动从 Watchlist 移除。</p>
+    </section>
   `;
 }
 
@@ -2690,6 +2841,8 @@ function renderSectorDetail(sector) {
         ${assets.map(compactAssetCard).join("") || emptyState("暂无相关标的，可在配置页添加", "assets")}
       </div>
     </section>
+
+    ${renderSectorAssetManager(sector, assets)}
   `;
 }
 
@@ -3613,6 +3766,8 @@ function bindEvents() {
     if (action === "add-asset") addAsset(id);
     if (action === "remove-asset") removeAsset(id);
     if (action === "delete-asset") deleteAsset(id);
+    if (action === "add-asset-to-sector") addAssetToSector(id, button.dataset.sectorId);
+    if (action === "remove-asset-from-sector") removeAssetFromSector(id, button.dataset.sectorId);
     if (action === "toggle-email") toggleEmail(id);
     if (action === "test-email") sendTestEmail(id, button);
     if (action === "test-primary-email") {
@@ -3654,6 +3809,7 @@ function bindEvents() {
     event.preventDefault();
     if (event.target.id === "sectorForm") createSector(event.target);
     if (event.target.id === "assetForm") createAsset(event.target);
+    if (event.target.id === "sectorAssetForm") createSectorAsset(event.target);
     if (event.target.id === "emailForm") createEmail(event.target);
     if (event.target.id === "llmForm") createLlm(event.target);
     if (event.target.id === "providerForm") createProvider(event.target);
