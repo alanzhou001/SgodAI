@@ -1,5 +1,16 @@
 const STORAGE_KEY = "sgodai.market-radar.config.v2";
-const API_BASE_URL = window.location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
+const API_BASE_STORAGE_KEY = "sgodai.apiBaseUrl";
+
+function resolveApiBaseUrl() {
+  const configured = localStorage.getItem(API_BASE_STORAGE_KEY);
+  if (configured) return configured.replace(/\/$/, "");
+  if (window.location.protocol === "file:") return "http://127.0.0.1:8000";
+  if (["8000", "18765"].includes(window.location.port)) return "";
+  if (["127.0.0.1", "localhost"].includes(window.location.hostname)) return "http://127.0.0.1:8000";
+  return "";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 const sectorCatalog = [
   {
