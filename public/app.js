@@ -1331,6 +1331,161 @@ function renderSystemOps() {
   }
 }
 
+function opsTaskStatus(label, status, action, actionLabel, tone = "idle") {
+  return `
+    <article class="ops-task ${esc(tone)}">
+      <div>
+        <strong>${esc(label)}</strong>
+        <span>${esc(status)}</span>
+      </div>
+      ${action ? `<button class="text-button" data-action="${esc(action)}">${esc(actionLabel)}</button>` : ""}
+    </article>
+  `;
+}
+
+function renderOpsQueue() {
+  const target = document.querySelector("#opsQueue");
+  if (!target) return;
+  const health = uiState.systemHealth;
+  const llm = health?.components?.llm;
+  const email = health?.components?.email;
+  const db = health?.components?.database;
+  const hasDaily = uiState.reports.items.some((report) => report.report_type === "daily");
+  const hasWeekly = uiState.reports.items.some((report) => report.report_type === "weekly");
+  const tasks = [
+    opsTaskStatus(
+      "环境体检",
+      health ? `已检查 · API ${health.components?.api?.version || "-"}` : "尚未运行一键健康检查",
+      "run-health-check",
+      health ? "重新检查" : "开始",
+      health ? "ok" : "warn",
+    ),
+    opsTaskStatus(
+      "配置持久化",
+      db?.config_persisted ? "SQLite 已保存配置" : "建议同步到后端 SQLite",
+      "run-health-check",
+      "核验",
+      db?.config_persisted ? "ok" : "warn",
+    ),
+    opsTaskStatus(
+      "LLM 接入",
+      llm?.configured ? `${llm.provider} 已配置` : "DeepSeek API Key 待配置或待检查",
+      "run-health-check",
+      "检查",
+      llm?.configured ? "ok" : "warn",
+    ),
+    opsTaskStatus(
+      "邮件通道",
+      email?.configured ? "SMTP 可发送" : "SMTP 待配置，日报邮件会失败",
+      appConfig.emailTargets[0]?.id ? "test-primary-email" : "open-email-settings",
+      email?.configured ? "测试" : "配置",
+      email?.configured ? "ok" : "warn",
+    ),
+    opsTaskStatus(
+      "日报沉淀",
+      hasDaily ? "今日/近期日报已进入报告库" : "尚无日报，建议先生成一份基线",
+      "generate-daily-report",
+      "生成",
+      hasDaily ? "ok" : "idle",
+    ),
+    opsTaskStatus(
+      "周度复盘",
+      hasWeekly ? "周报已进入报告库" : "尚无周报，适合周末或阶段复盘",
+      "generate-weekly-report",
+      "生成",
+      hasWeekly ? "ok" : "idle",
+    ),
+  ];
+  target.innerHTML = tasks.join("");
+}
+
+function providerTone(item) {
+  if (!item) return "idle";
+  if (item.status === "active" || item.status === "active_auxiliary") return "ok";
+  if (item.status === "reserved") return "reserved";
+  return "warn";
+}
+
+function providerOverviewCard(item) {
+  return `
+    <article class="provider-mini ${esc(providerTone(item))}">
+      <strong>${esc(item.name || item.id || "Provider")}</strong>
+      <span>${esc(item.status || "unknown")} · ${esc(item.auth || "none")}</span>
+    </article>
+  `;
+}
+
+function renderProviderOverview() {
+  const target = document.querySelector("#providerOverview");
+  if (!target) return;
+  const providers = uiState.systemHealth?.components?.providers;
+  if (!providers) {
+    target.innerHTML = `
+      <div class="ops-empty">
+        <strong>待读取 Provider Registry</strong>
+        <span>点击健康检查后展示行情、新闻、公告、财报等接口状态。</span>
+        <button class="text-button" data-action="run-health-check">刷新状态</button>
+      </div>
+    `;
+    return;
+  }
+  const market = providers.market_data || {};
+  const information = providers.information || {};
+  const activeItems = [...(market.items || []), ...(information.items || [])].filter((item) =>
+    ["active", "active_auxiliary"].includes(item.status),
+  );
+  const reservedCount = [...(market.items || []), ...(information.items || [])].filter(
+    (item) => item.status === "reserved",
+  ).length;
+  target.innerHTML = `
+    <div class="provider-kpis">
+      <div><span>行情</span><strong>${esc(market.active || 0)}/${esc(market.total || 0)}</strong></div>
+      <div><span>资讯</span><strong>${esc(information.active || 0)}/${esc(information.total || 0)}</strong></div>
+      <div><span>预留</span><strong>${esc(reservedCount)}</strong></div>
+    </div>
+    <div class="provider-mini-list">
+      ${
+        activeItems.length
+          ? activeItems.slice(0, 6).map(providerOverviewCard).join("")
+          : `<div class="empty-inline">暂无 active provider。</div>`
+      }
+    </div>
+    <button class="text-button" data-open-config="providers">打开数据源配置</button>
+  `;
+}
+
+function renderDashboardReports() {
+  const target = document.querySelector("#dashboardReports");
+  if (!target) return;
+  const reports = uiState.reports.items.slice(0, 4);
+  if (!reports.length) {
+    target.innerHTML = `
+      <div class="ops-empty">
+        <strong>报告库为空</strong>
+        <span>生成日报或周报后，可在网页端长期查看和复盘。</span>
+        <button class="text-button" data-action="generate-daily-report">生成日报</button>
+      </div>
+    `;
+    return;
+  }
+  target.innerHTML = reports
+    .map(
+      (report) => `
+        <button class="dashboard-report-item" data-action="open-dashboard-report" data-id="${esc(report.id)}">
+          <strong>${esc(reportTypeLabel(report.report_type))} · ${esc(formatDateShort(report.created_at))}</strong>
+          <span>${esc(reportSummaryLine(report))}</span>
+        </button>
+      `,
+    )
+    .join("");
+}
+
+function renderResearchOps() {
+  renderOpsQueue();
+  renderProviderOverview();
+  renderDashboardReports();
+}
+
 function reportTypeLabel(type) {
   if (type === "weekly") return "周报";
   if (type === "daily") return "日报";
@@ -2916,6 +3071,7 @@ function renderGraphOnly() {
 function renderAll() {
   renderMetrics();
   renderSystemOps();
+  renderResearchOps();
   renderSectorCards("#sectorMatrix");
   renderSectorCards("#radarBoard", true);
   renderAlerts();
@@ -2956,12 +3112,14 @@ async function fetchRecentReports({ silent = false } = {}) {
       uiState.reports.selectedId = uiState.reports.items[0].id;
     }
     renderReportCenter();
+    renderDashboardReports();
   } catch (error) {
     uiState.reports.error = error.message;
     if (!silent) showToast(`报告读取失败：${error.message}`);
   } finally {
     uiState.reports.loading = false;
     renderReportCenter();
+    renderResearchOps();
   }
 }
 
@@ -3446,6 +3604,10 @@ function bindEvents() {
     if (action === "delete-asset") deleteAsset(id);
     if (action === "toggle-email") toggleEmail(id);
     if (action === "test-email") sendTestEmail(id, button);
+    if (action === "test-primary-email") {
+      sendTestEmail(appConfig.emailTargets.find((email) => email.enabled)?.id || appConfig.emailTargets[0]?.id, button);
+    }
+    if (action === "open-email-settings") openConfig("emails");
     if (action === "delete-email") deleteEmail(id);
     if (action === "toggle-provider") toggleProvider(id);
     if (action === "toggle-llm") toggleLlm(id);
@@ -3455,6 +3617,11 @@ function bindEvents() {
     if (action === "generate-daily-report-email") generateDailyReport(true, button);
     if (action === "refresh-reports") fetchRecentReports();
     if (action === "open-reports") switchView("reports");
+    if (action === "open-dashboard-report") {
+      uiState.reports.selectedId = id;
+      switchView("reports");
+      renderReportCenter();
+    }
     if (action === "select-report") {
       uiState.reports.selectedId = id;
       renderReportCenter();

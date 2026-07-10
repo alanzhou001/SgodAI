@@ -366,6 +366,153 @@ input,
   border-color: color-mix(in srgb, var(--amber) 42%, var(--line));
 }
 
+.dashboard-ops-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.05fr) minmax(260px, 0.9fr) minmax(260px, 0.85fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ops-lane {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface-strong);
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.ops-lane-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.ops-lane-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.ops-lane-head span,
+.ops-task span,
+.provider-mini span,
+.ops-empty span,
+.dashboard-report-item span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ops-queue,
+.provider-overview,
+.dashboard-reports,
+.provider-mini-list {
+  display: grid;
+  gap: 8px;
+}
+
+.ops-task {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+}
+
+.ops-task div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.ops-task strong,
+.provider-mini strong,
+.dashboard-report-item strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.ops-task.ok,
+.provider-mini.ok {
+  border-color: color-mix(in srgb, var(--green) 34%, var(--line));
+}
+
+.ops-task.warn {
+  border-color: color-mix(in srgb, var(--amber) 42%, var(--line));
+}
+
+.provider-mini.reserved {
+  border-color: color-mix(in srgb, var(--violet) 30%, var(--line));
+}
+
+.provider-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.provider-kpis div {
+  min-height: 56px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  background: var(--surface);
+}
+
+.provider-kpis span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.provider-kpis strong {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.provider-mini,
+.dashboard-report-item {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 9px;
+}
+
+.provider-mini {
+  display: grid;
+  gap: 4px;
+}
+
+.dashboard-report-item {
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+}
+
+.dashboard-report-item:hover {
+  border-color: var(--blue);
+}
+
+.ops-empty {
+  display: grid;
+  gap: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 10px;
+}
+
 .metric,
 .panel,
 .sector-card,
@@ -1454,6 +1601,7 @@ td span {
   }
 
   .system-status-grid,
+  .dashboard-ops-grid,
   .provider-status-list,
   .report-layout,
   .report-metrics {
@@ -1570,6 +1718,8 @@ td span {
 
   .metrics-grid,
   .detail-metrics,
+  .dashboard-ops-grid,
+  .provider-kpis,
   .sector-matrix,
   .radar-board,
   .watch-grid,

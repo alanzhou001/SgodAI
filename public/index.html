@@ -78,6 +78,29 @@
               <button class="text-button" data-action="open-reports">查看报告</button>
             </div>
             <div id="systemOpsStatus" class="system-status-grid"></div>
+            <div class="dashboard-ops-grid">
+              <section class="ops-lane">
+                <div class="ops-lane-head">
+                  <h3>今日运行队列</h3>
+                  <span>Research Ops</span>
+                </div>
+                <div id="opsQueue" class="ops-queue"></div>
+              </section>
+              <section class="ops-lane">
+                <div class="ops-lane-head">
+                  <h3>数据源概览</h3>
+                  <span>Provider Mesh</span>
+                </div>
+                <div id="providerOverview" class="provider-overview"></div>
+              </section>
+              <section class="ops-lane">
+                <div class="ops-lane-head">
+                  <h3>最近报告</h3>
+                  <span>Report DB</span>
+                </div>
+                <div id="dashboardReports" class="dashboard-reports"></div>
+              </section>
+            </div>
           </section>
 
           <section class="split">
