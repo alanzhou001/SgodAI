@@ -67,7 +67,7 @@ class ConfigAssistService:
             market_scope=market_scope,
         )
         result["validatedAssets"] = validated_assets
-        result["relatedTickers"] = [asset["ticker"] for asset in validated_assets]
+        result["relatedTickers"] = _related_tickers(result.get("related_assets") or [], validated_assets)
         result["provider"] = output.provider
         result["model"] = output.model
         result["confidence"] = output.confidence
@@ -114,7 +114,15 @@ class ConfigAssistService:
         indicators = _list(result.get("indicators") or result.get("观察指标"))
         upstream = _list(result.get("upstream") or result.get("上游"))
         downstream = _list(result.get("downstream") or result.get("下游"))
-        related_assets = result.get("related_assets") or result.get("candidate_assets") or []
+        related_assets = (
+            result.get("related_assets")
+            or result.get("relatedAssets")
+            or result.get("candidate_assets")
+            or result.get("candidateAssets")
+            or result.get("representative_assets")
+            or result.get("代表标的")
+            or []
+        )
         return {
             "horizon": _horizon(result.get("horizon") or result.get("cycle") or result.get("观察周期")),
             "driver": str(result.get("driver") or result.get("summary") or f"{name} 行业画像由 DeepSeek 生成。"),
@@ -166,6 +174,27 @@ def _candidate(value: Any) -> dict[str, str]:
             "rationale": str(value.get("rationale") or value.get("reason") or "").strip(),
         }
     return {"ticker": "", "name": str(value).strip(), "market": "", "rationale": ""}
+
+
+def _related_tickers(candidates: list[Any], validated_assets: list[dict[str, Any]]) -> list[str]:
+    tickers: list[str] = []
+    for asset in validated_assets:
+        ticker = str(asset.get("ticker") or "").strip().upper()
+        if ticker:
+            tickers.append(ticker)
+    for candidate in candidates:
+        normalized = _candidate(candidate)
+        ticker = normalized.get("ticker", "").upper()
+        if ticker:
+            tickers.append(ticker)
+    seen: set[str] = set()
+    result: list[str] = []
+    for ticker in tickers:
+        if ticker in seen:
+            continue
+        seen.add(ticker)
+        result.append(ticker)
+    return result
 
 
 def _candidate_markets(candidate_market: str | None, market_scope: list[str] | None) -> list[str]:

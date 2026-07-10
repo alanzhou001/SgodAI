@@ -998,6 +998,7 @@ async function requestLlmAssistance(kind, payload) {
 function normalizeAssistResult(kind, result) {
   if (kind === "sector") {
     const validatedAssets = Array.isArray(result.validatedAssets) ? result.validatedAssets : [];
+    const tickersFromValidatedAssets = validatedAssets.map((asset) => asset.ticker).filter(Boolean);
     return {
       horizon: result.horizon || "medium",
       driver: result.driver || result.summary || "",
@@ -1006,8 +1007,10 @@ function normalizeAssistResult(kind, result) {
       upstream: listFromValue(result.upstream),
       downstream: listFromValue(result.downstream),
       relatedTickers: listFromValue(result.relatedTickers).length
-        ? listFromValue(result.relatedTickers)
-        : validatedAssets.map((asset) => asset.ticker).filter(Boolean),
+        ? uniqBy([...listFromValue(result.relatedTickers), ...tickersFromValidatedAssets], (ticker) =>
+            String(ticker).toUpperCase(),
+          )
+        : tickersFromValidatedAssets,
       validatedAssets,
       confidence: result.confidence,
       riskNotes: result.risk_notes || [],
@@ -1038,6 +1041,13 @@ function upsertValidatedAssets(assets, sectorName) {
       events: [["DeepSeek", item.rationale || "AI 补全候选标的已通过真实标的搜索校验"]],
     });
   });
+}
+
+function assistedRelatedTickers(result) {
+  return uniqBy(
+    [...listFromValue(result.relatedTickers), ...(result.validatedAssets || []).map((asset) => asset.ticker).filter(Boolean)],
+    (ticker) => String(ticker).toUpperCase(),
+  );
 }
 
 function normalizeConfigPayload(parsed = {}) {
@@ -3438,7 +3448,7 @@ async function assistSectorForm(form, button = null) {
     form.elements.indicators.value = form.elements.indicators.value || (result.indicators || []).join("，");
     form.elements.upstream.value = form.elements.upstream.value || (result.upstream || []).join("，");
     form.elements.downstream.value = form.elements.downstream.value || (result.downstream || []).join("，");
-    const relatedTickers = (result.relatedTickers || []).join("，");
+    const relatedTickers = assistedRelatedTickers(result).join("，");
     if (relatedTickers) form.elements.relatedTickers.value = relatedTickers;
     form.dataset.assistRisks = result.risks || "";
     form.dataset.assistSource = provider;

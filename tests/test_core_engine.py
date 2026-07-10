@@ -350,3 +350,18 @@ class CoreEngineTest(TestCase):
         self.assertEqual(result["provider"], "deepseek")
         self.assertEqual(result["relatedTickers"], ["002594.SZ"])
         self.assertEqual(result["validatedAssets"][0]["name"], "比亚迪")
+
+    def test_config_assist_keeps_llm_ticker_when_validation_misses(self) -> None:
+        class NoMatchAssetSearchProvider:
+            def search_assets(self, query, limit=20, markets=None):  # noqa: ANN001
+                return []
+
+        service = ConfigAssistService(
+            llm_provider=FakeLLMProvider(),
+            asset_search_provider=NoMatchAssetSearchProvider(),
+        )
+
+        result = service.assist_sector("新能源汽车")
+
+        self.assertEqual(result["validatedAssets"], [])
+        self.assertEqual(result["relatedTickers"], ["002594.SZ"])
